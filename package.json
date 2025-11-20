@@ -1,0 +1,24 @@
+{
+  "name": "mandelbrot-visualizer",
+  "version": "1.0.0",
+  "description": "Interactive Mandelbrot set visualizer using WebAssembly",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "build:rust": "cd wasm/rust && wasm-pack build --target web --out-dir pkg",
+    "build:cpp": "cd wasm/cpp && emcc mandelbrot.cpp -o mandelbrot.js -s WASM=1 -s EXPORTED_FUNCTIONS='[\"_calculatePoint\"]' -s EXPORTED_RUNTIME_METHODS='[\"ccall\",\"cwrap\"]' -s EXPORT_ES6=1 -s MODULARIZE=1 -O3",
+    "build:go": "cd wasm/go && (tinygo build -o mandelbrot.wasm -target wasm mandelbrot.go 2>/dev/null || GOOS=js GOARCH=wasm go build -o mandelbrot.wasm mandelbrot.go)",
+    "build:wasm": "npm run build:rust && npm run build:cpp && npm run build:go"
+  },
+  "devDependencies": {
+    "canvas": "^3.2.0",
+    "fast-check": "^3.15.0",
+    "jsdom": "^27.2.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

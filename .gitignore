@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+wasm/rust/pkg/
+wasm/rust/target/
+wasm/cpp/build/
+wasm/cpp/*.js
+wasm/cpp/*.wasm
+wasm/go/build/
+wasm/go/*.wasm
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editor directories
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test coverage
+coverage/

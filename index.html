@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mandelbrot Visualizer</title>
+  <meta name="description" content="Interactive Mandelbrot set fractal visualizer with WebAssembly">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Full-screen canvas for Mandelbrot set rendering -->
+  <canvas id="mandelbrot-canvas" aria-label="Mandelbrot set visualization"></canvas>
+  
+  <!-- Module selector overlay UI -->
+  <div id="module-selector" class="module-selector" role="toolbar" aria-label="WebAssembly module selector">
+    <!-- Module selector buttons will be dynamically populated by JavaScript -->
+  </div>
+  
+  <!-- Error message display -->
+  <div id="error-message" class="error-message hidden" role="alert" aria-live="assertive"></div>
+  
+  <!-- Main application script -->
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

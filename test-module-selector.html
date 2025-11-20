@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Module Selector Test</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    body {
+      background: #f0f0f0;
+      padding: 20px;
+    }
+    #test-canvas {
+      width: 800px;
+      height: 600px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      position: relative;
+    }
+    .info {
+      margin-top: 20px;
+      padding: 15px;
+      background: white;
+      border-radius: 8px;
+      font-family: monospace;
+    }
+  </style>
+</head>
+<body>
+  <h1>Module Selector Component Test</h1>
+  
+  <div id="test-canvas">
+    <div id="module-selector" class="module-selector" role="toolbar" aria-label="WebAssembly module selector">
+      <!-- Module selector will be rendered here -->
+    </div>
+  </div>
+  
+  <div class="info">
+    <h3>Current Module: <span id="current-module">-</span></h3>
+    <h3>Module Changes:</h3>
+    <ul id="change-log"></ul>
+  </div>
+
+  <script type="module">
+    import { ModuleSelector } from './src/moduleSelector.js';
+
+    // Create callback to log module changes
+    function onModuleChange(newModule, previousModule) {
+      console.log(`Module changed from ${previousModule} to ${newModule}`);
+      
+      // Update display
+      document.getElementById('current-module').textContent = newModule;
+      
+      // Add to change log
+      const log = document.getElementById('change-log');
+      const entry = document.createElement('li');
+      entry.textContent = `${new Date().toLocaleTimeString()}: ${previousModule} → ${newModule}`;
+      log.appendChild(entry);
+    }
+
+    // Create and render module selector
+    const moduleSelector = new ModuleSelector(onModuleChange);
+    moduleSelector.render();
+
+    // Update initial display
+    document.getElementById('current-module').textContent = moduleSelector.getCurrentModule();
+
+    console.log('Module Selector initialized');
+    console.log('Available modules:', moduleSelector.availableModules);
+    console.log('Current module:', moduleSelector.getCurrentModule());
+  </script>
+</body>
+</html>

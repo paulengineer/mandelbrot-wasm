@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WASM Loader Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebAssembly Module Loader Test</h1>
+    
+    <div class="test-section">
+        <h2>Available Modules</h2>
+        <div id="available-modules"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Default Module</h2>
+        <div id="default-module"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Load Modules</h2>
+        <button onclick="testLoadRust()">Load Rust Module</button>
+        <button onclick="testLoadCpp()">Load C++ Module</button>
+        <button onclick="testLoadGo()">Load Go Module</button>
+        <div id="load-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test Calculations</h2>
+        <button onclick="testCalculations()">Run Calculation Tests</button>
+        <div id="calc-results"></div>
+    </div>
+
+    <script type="module">
+        import { 
+            loadWasmModule, 
+            loadDefaultModule, 
+            getAvailableModules, 
+            getDefaultModuleName 
+        } from './src/wasmLoader.js';
+
+        // Make functions available globally for button onclick
+        window.testLoadRust = async () => {
+            await testLoadModule('rust');
+        };
+
+        window.testLoadCpp = async () => {
+            await testLoadModule('cpp');
+        };
+
+        window.testLoadGo = async () => {
+            await testLoadModule('go');
+        };
+
+        window.testCalculations = async () => {
+            const resultsDiv = document.getElementById('calc-results');
+            resultsDiv.innerHTML = '<p>Running tests...</p>';
+            
+            try {
+                const module = await loadDefaultModule();
+                
+                let results = '<h3>Calculation Tests</h3>';
+                
+                // Test 1: Point in set (0, 0)
+                const test1 = module.calculatePoint(0.0, 0.0, 100, 2.0);
+                results += `<p>✓ Point (0, 0): ${test1} iterations (expected: 100)</p>`;
+                
+                // Test 2: Point that escapes quickly (2, 2)
+                const test2 = module.calculatePoint(2.0, 2.0, 100, 2.0);
+                results += `<p>✓ Point (2, 2): ${test2} iterations (expected: < 10)</p>`;
+                
+                // Test 3: Point on edge (-0.5, 0)
+                const test3 = module.calculatePoint(-0.5, 0.0, 100, 2.0);
+                results += `<p>✓ Point (-0.5, 0): ${test3} iterations</p>`;
+                
+                resultsDiv.innerHTML = results;
+                resultsDiv.className = 'success';
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+                resultsDiv.className = 'error';
+            }
+        };
+
+        async function testLoadModule(moduleName) {
+            const resultsDiv = document.getElementById('load-results');
+            resultsDiv.innerHTML = `<p>Loading ${moduleName} module...</p>`;
+            
+            try {
+                const module = await loadWasmModule(moduleName);
+                
+                let info = `<h3>${module.name} Module Loaded Successfully</h3>`;
+                info += `<p>Type: ${module.type}</p>`;
+                info += `<p>Has calculatePoint: ${typeof module.calculatePoint === 'function' ? 'Yes' : 'No'}</p>`;
+                
+                // Test the function
+                const testResult = module.calculatePoint(0, 0, 100, 2.0);
+                info += `<p>Test calculation (0, 0): ${testResult} iterations</p>`;
+                
+                resultsDiv.innerHTML = info;
+                resultsDiv.className = 'success';
+            } catch (error) {
+                resultsDiv.innerHTML = `<p>Error loading ${moduleName}: ${error.message}</p>`;
+                resultsDiv.className = 'error';
+            }
+        }
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show available modules
+            const modules = getAvailableModules();
+            document.getElementById('available-modules').innerHTML = 
+                `<p>Available modules: ${modules.join(', ')}</p>`;
+            
+            // Show default module
+            const defaultModule = getDefaultModuleName();
+            document.getElementById('default-module').innerHTML = 
+                `<p>Default module: ${defaultModule}</p>`;
+        });
+    </script>
+</body>
+</html>
