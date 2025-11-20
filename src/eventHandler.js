@@ -97,8 +97,8 @@ export class EventHandler {
     // Note: We pass negative deltas because dragging right should move the view left
     // (i.e., we're moving the viewport in the opposite direction of the mouse)
     this.viewportManager.pan(
-      -deltaX,
-      -deltaY,
+      deltaX,
+      deltaY,
       this.canvas.width,
       this.canvas.height
     );
