@@ -31,13 +31,11 @@ export class ViewportInfo {
     if (absValue === 0) {
       return '0.0';
     } else if (absValue >= 1000) {
-      return value.toExponential(4);
+      return value.toExponential(14);
     } else if (absValue >= 1) {
-      return value.toFixed(4);
-    } else if (absValue >= 0.0001) {
-      return value.toFixed(6);
+      return value.toFixed(15);
     } else {
-      return value.toExponential(4);
+      return value.toExponential(14);
     }
   }
 
