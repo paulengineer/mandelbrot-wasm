@@ -62,7 +62,7 @@ The application follows a request-render cycle where user interactions update vi
 3. **Module Selection**: User selects module (WASM or JavaScript) → Load new module → Preserve viewport → Re-render with new module → Display render time
 4. **Render Cycle**: Viewport parameters → Module calculation for each pixel → Measure calculation time → Color mapping → Canvas draw → Update render time display
 5. **Zoom Interaction**: Wheel event → Scale existing canvas image → Start debounce timer (1000ms) → If no additional zoom, trigger full re-render → Update viewport info
-6. **Resize**: Window resize → Adjust canvas dimensions → Anchor viewport at top-left corner → Maintain 1:1 aspect ratio → Expand/contract from right and bottom edges → Update viewport info → Trigger render
+6. **Resize**: Window resize → Adjust canvas dimensions → Maintain scale unchanged → Anchor top-left complex plane position at top-left of canvas → Adjust complex plane bounds to match new canvas dimensions → Maintain aspect ratio matching canvas → Update viewport info → Trigger render
 7. **Error Handling**: Module load failure → Display modal error → User must dismiss modal → Fall back to previous working module
 
 ## Components and Interfaces
@@ -128,7 +128,7 @@ class ViewportManager {
   // Update viewport for zooming
   zoom(zoomFactor, focalX, focalY, canvasWidth, canvasHeight)
   
-  // Update viewport for window resize (anchor at top-left, expand/contract from right/bottom)
+  // Update viewport for window resize (maintain scale, anchor top-left position)
   resize(newCanvasWidth, newCanvasHeight)
   
   // Convert canvas coordinates to complex plane coordinates
@@ -140,10 +140,10 @@ class ViewportManager {
 - Stores current viewport boundaries in complex plane coordinates
 - Translates pixel deltas to complex plane deltas for panning
 - Scales viewport around focal point for zooming
-- Maintains 1:1 aspect ratio between real and imaginary axes
-- Anchors viewport at top-left during resize operations
-- Expands or contracts viewport from right and bottom edges during resize
-- Ensures viewport dimensions match canvas aspect ratio
+- Maintains aspect ratio matching canvas dimensions (complex plane aspect ratio = canvas aspect ratio)
+- During resize: maintains scale unchanged and anchors top-left complex plane position at top-left of canvas
+- Adjusts complex plane bounds to match new canvas dimensions while preserving scale
+- Ensures viewport dimensions match canvas aspect ratio at all times
 
 #### 2.3 Render Engine
 
@@ -299,9 +299,9 @@ Represents the current view into the complex plane.
 - Initial viewport should be centered in canvas with no cropping
 
 **Constraints**:
-- Must maintain 1:1 aspect ratio: (maxReal - minReal) / (maxImag - minImag) = canvasWidth / canvasHeight
-- Viewport must remain anchored at top-left during resize operations
-- Width changes add/remove from right edge, height changes add/remove from bottom edge
+- Must maintain aspect ratio matching canvas: (maxReal - minReal) / (maxImag - minImag) = canvasWidth / canvasHeight
+- During resize: scale remains unchanged, top-left complex plane position anchored at top-left of canvas
+- Complex plane bounds adjust to match new canvas dimensions while preserving scale
 - Viewport must not be cropped during transformations
 
 ### Calculation Parameters
@@ -402,15 +402,15 @@ Mapping from iteration counts to RGB colors.
 
 **Validates: Requirements 5.6**
 
-### Property 12: Viewport anchored at top-left on resize
+### Property 12: Viewport scale and top-left position preserved on resize
 
-*For any* viewport and canvas resize operation, the top-left corner of the complex plane view should remain at the same position, with width changes affecting the right edge and height changes affecting the bottom edge.
+*For any* viewport and canvas resize operation, the scale (units per pixel) should remain unchanged and the top-left corner complex plane position should remain anchored at the top-left of the canvas, with complex plane bounds adjusting to match the new canvas dimensions.
 
-**Validates: Requirements 1.1.1**
+**Validates: Requirements 1.2**
 
-### Property 13: 1:1 aspect ratio maintained
+### Property 13: Aspect ratio matches canvas
 
-*For any* viewport state, the ratio of (maxReal - minReal) to (maxImag - minImag) should equal the ratio of canvas width to canvas height, maintaining a 1:1 aspect ratio between real and imaginary axes.
+*For any* viewport state, the ratio of (maxReal - minReal) to (maxImag - minImag) should equal the ratio of canvas width to canvas height, maintaining aspect ratio matching between complex plane and canvas dimensions.
 
 **Validates: Requirements 1.6**
 
@@ -530,7 +530,7 @@ Unit tests will verify specific examples and edge cases:
 - Test that canvas is created with correct initial dimensions
 - Test that initial viewport matches specification (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)
 - Test that initial viewport is centered in canvas with no cropping
-- Test that canvas maintains 1:1 aspect ratio on initialization
+- Test that canvas maintains aspect ratio matching canvas dimensions on initialization
 - Test that default calculation module is loaded before first render
 - Test that module selector UI is present on page load with all modules (Rust, C++, Go, Moonbit, JavaScript)
 - Test that viewport info UI is present on page load
@@ -567,8 +567,8 @@ Unit tests will verify specific examples and edge cases:
 - Test module load failure displays modal error message
 - Test modal error persists until user dismisses
 - Test invalid viewport state is handled gracefully
-- Test viewport anchoring at top-left during resize
-- Test 1:1 aspect ratio is maintained during all operations
+- Test viewport scale preservation and top-left anchoring during resize
+- Test aspect ratio matching canvas is maintained during all operations
 
 ### Property-Based Testing
 
@@ -626,16 +626,16 @@ Property-based tests will verify universal properties across many randomly gener
     - Switch between random modules (WASM and JavaScript)
     - Verify viewport boundaries unchanged
 
-12. **Viewport Anchored at Top-Left on Resize** (Property 12)
+12. **Viewport Scale and Top-Left Position Preserved on Resize** (Property 12)
     - Generate random viewports and canvas dimensions
     - Perform resize operation
-    - Verify top-left corner position remains constant
-    - Verify width changes affect right edge only
-    - Verify height changes affect bottom edge only
+    - Verify scale (units per pixel) remains unchanged
+    - Verify top-left corner complex plane position remains anchored at top-left of canvas
+    - Verify complex plane bounds adjust to match new canvas dimensions
 
-13. **1:1 Aspect Ratio Maintained** (Property 13)
+13. **Aspect Ratio Matches Canvas** (Property 13)
     - Generate random viewport states and canvas dimensions
-    - Verify aspect ratio equals canvas aspect ratio
+    - Verify complex plane aspect ratio equals canvas aspect ratio
 
 14. **Canvas Scales on Zoom** (Property 14)
     - Generate random zoom operations
@@ -679,7 +679,7 @@ Property-based tests will verify universal properties across many randomly gener
 - Test module switching during active rendering
 - Test that all calculation modules (WASM and JavaScript) produce equivalent results for the same input
 - Test viewport info updates correctly across all interaction types
-- Test resize operations maintain viewport anchoring at top-left and aspect ratio
+- Test resize operations maintain scale, top-left anchoring, and aspect ratio matching canvas
 - Test modal error flow from display to dismissal
 
 ### Performance Testing

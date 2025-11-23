@@ -336,26 +336,26 @@
   - Ensure initial viewport is centered in canvas with no cropping
   - _Requirements: 1.5_
 
-- [x] 31. Implement 1:1 aspect ratio constraint
-  - Update ViewportManager to enforce 1:1 aspect ratio
+- [x] 31. Implement aspect ratio matching canvas constraint
+  - Update ViewportManager to enforce aspect ratio matching canvas dimensions
   - Ensure (maxReal - minReal) / (maxImag - minImag) = canvasWidth / canvasHeight
   - Apply constraint during initialization, pan, zoom, and resize
-  - _Requirements: 1.4_
+  - _Requirements: 1.6_
 
-- [x] 31.1 Write property test for 1:1 aspect ratio
-  - **Property 13: 1:1 aspect ratio maintained**
-  - **Validates: Requirements 1.4**
+- [x] 31.1 Write property test for aspect ratio matching canvas
+  - **Property 13: Aspect ratio matches canvas**
+  - **Validates: Requirements 1.6**
 
-- [-] 32. Update resize behavior to anchor at top-left
-  - Modify ViewportManager.resize() to anchor viewport at top-left corner
-  - Width changes should add/remove from right edge
-  - Height changes should add/remove from bottom edge
-  - Remove centering logic from resize operations
-  - _Requirements: 1.1.1_
+- [ ] 32. Update resize behavior to maintain scale and anchor top-left position
+  - Modify ViewportManager.resize() to maintain scale unchanged during resize
+  - Anchor top-left complex plane position at top-left of canvas
+  - Adjust complex plane bounds to match new canvas dimensions while preserving scale
+  - Ensure aspect ratio continues to match canvas dimensions
+  - _Requirements: 1.2_
 
-- [-] 32.1 Write property test for top-left anchored resize
-  - **Property 12: Viewport anchored at top-left on resize**
-  - **Validates: Requirements 1.1.1**
+- [ ] 32.1 Write property test for scale preservation and top-left anchored resize
+  - **Property 12: Viewport scale and top-left position preserved on resize**
+  - **Validates: Requirements 1.2**
 
 - [ ] 33. Implement debounced rendering for zoom
   - Add debounce timer to EventHandler (1000ms delay)
@@ -393,8 +393,8 @@
   - Test render time display updates correctly
   - Test modal error dialog flow
   - Test viewport info updates across all interactions
-  - Test 1:1 aspect ratio maintenance
-  - Test top-left anchored resize behavior
+  - Test aspect ratio matching canvas is maintained
+  - Test scale preservation and top-left anchored resize behavior
   - Test debounced zoom rendering
   - Test immediate canvas scaling on zoom
   - _Requirements: All_
