@@ -116,8 +116,8 @@ describe('EventHandler', () => {
         clientY: 350
       }));
       
-      // Pan should be called with negative deltas (opposite of mouse movement)
-      expect(panSpy).toHaveBeenCalledWith(-50, -50, 800, 600);
+      // Pan should be called with the deltas (ViewportManager handles the direction)
+      expect(panSpy).toHaveBeenCalledWith(50, 50, 800, 600);
     });
 
     it('should trigger render during mouse move', () => {
@@ -246,21 +246,21 @@ describe('EventHandler', () => {
         clientY: 300
       }));
       
-      // First move to (450, 350) - delta should be (-50, -50)
+      // First move to (450, 350) - delta should be (50, 50)
       eventHandler.onMouseMove(new MouseEvent('mousemove', {
         clientX: 450,
         clientY: 350
       }));
       
-      expect(panSpy).toHaveBeenLastCalledWith(-50, -50, 800, 600);
+      expect(panSpy).toHaveBeenLastCalledWith(50, 50, 800, 600);
       
-      // Second move to (460, 360) - delta should be (-10, -10) from last position
+      // Second move to (460, 360) - delta should be (10, 10) from last position
       eventHandler.onMouseMove(new MouseEvent('mousemove', {
         clientX: 460,
         clientY: 360
       }));
       
-      expect(panSpy).toHaveBeenLastCalledWith(-10, -10, 800, 600);
+      expect(panSpy).toHaveBeenLastCalledWith(10, 10, 800, 600);
     });
   });
 

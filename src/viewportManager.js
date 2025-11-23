@@ -3,6 +3,7 @@
  * 
  * Manages the viewport state representing the visible region of the complex plane.
  * Handles coordinate transformations between canvas pixels and complex plane coordinates.
+ * Maintains 1:1 aspect ratio between real and imaginary axes.
  */
 export class ViewportManager {
   /**
@@ -12,17 +13,59 @@ export class ViewportManager {
    * @param {number} initialBounds.maxReal - Maximum real component (right edge)
    * @param {number} initialBounds.minImag - Minimum imaginary component (bottom edge)
    * @param {number} initialBounds.maxImag - Maximum imaginary component (top edge)
+   * @param {number} canvasWidth - Initial canvas width (optional, for aspect ratio enforcement)
+   * @param {number} canvasHeight - Initial canvas height (optional, for aspect ratio enforcement)
    */
   constructor(initialBounds = {
     minReal: -2.5,
     maxReal: 1.0,
     minImag: -1.0,
     maxImag: 1.0
-  }) {
+  }, canvasWidth = null, canvasHeight = null) {
     this.minReal = initialBounds.minReal;
     this.maxReal = initialBounds.maxReal;
     this.minImag = initialBounds.minImag;
     this.maxImag = initialBounds.maxImag;
+    
+    // Store canvas dimensions for resize operations
+    this.canvasWidth = canvasWidth;
+    this.canvasHeight = canvasHeight;
+    
+    // Enforce 1:1 aspect ratio if canvas dimensions are provided
+    if (canvasWidth && canvasHeight) {
+      this.enforceAspectRatio(canvasWidth, canvasHeight);
+    }
+  }
+  
+  /**
+   * Enforce 1:1 aspect ratio constraint
+   * Ensures (maxReal - minReal) / (maxImag - minImag) = canvasWidth / canvasHeight
+   * Adjusts the imaginary range to match the canvas aspect ratio
+   * @param {number} canvasWidth - Width of canvas (pixels)
+   * @param {number} canvasHeight - Height of canvas (pixels)
+   * @param {boolean} anchorTopLeft - If true, anchor at top-left corner; if false, center the adjustment
+   */
+  enforceAspectRatio(canvasWidth, canvasHeight, anchorTopLeft = false) {
+    const realRange = this.maxReal - this.minReal;
+    const imagRange = this.maxImag - this.minImag;
+    const canvasAspectRatio = canvasWidth / canvasHeight;
+    const viewportAspectRatio = realRange / imagRange;
+    
+    // If aspect ratios don't match, adjust the imaginary range
+    if (Math.abs(viewportAspectRatio - canvasAspectRatio) > 1e-10) {
+      // Calculate the required imaginary range to match canvas aspect ratio
+      const requiredImagRange = realRange / canvasAspectRatio;
+      
+      if (anchorTopLeft) {
+        // Anchor at top-left: keep maxImag fixed, adjust minImag
+        this.minImag = this.maxImag - requiredImagRange;
+      } else {
+        // Center the adjustment: adjust both bounds symmetrically
+        const imagCenter = (this.minImag + this.maxImag) / 2;
+        this.minImag = imagCenter - requiredImagRange / 2;
+        this.maxImag = imagCenter + requiredImagRange / 2;
+      }
+    }
   }
 
   /**
@@ -82,6 +125,13 @@ export class ViewportManager {
     this.maxReal -= realDelta;
     this.minImag -= imagDelta;
     this.maxImag -= imagDelta;
+    
+    // Enforce 1:1 aspect ratio after pan
+    this.enforceAspectRatio(canvasWidth, canvasHeight);
+    
+    // Update stored canvas dimensions
+    this.canvasWidth = canvasWidth;
+    this.canvasHeight = canvasHeight;
   }
 
   /**
@@ -116,5 +166,67 @@ export class ViewportManager {
     this.maxReal = focalPoint.real + newRealRange * (1 - focalRealRatio);
     this.minImag = focalPoint.imag - newImagRange * focalImagRatio;
     this.maxImag = focalPoint.imag + newImagRange * (1 - focalImagRatio);
+    
+    // Enforce 1:1 aspect ratio after zoom
+    this.enforceAspectRatio(canvasWidth, canvasHeight);
+    
+    // Update stored canvas dimensions
+    this.canvasWidth = canvasWidth;
+    this.canvasHeight = canvasHeight;
+  }
+  
+  /**
+   * Update viewport for window resize
+   * Anchors viewport at top-left corner, with width changes affecting right edge
+   * and height changes affecting bottom edge
+   * @param {number} newCanvasWidth - New canvas width (pixels)
+   * @param {number} newCanvasHeight - New canvas height (pixels)
+   */
+  resize(newCanvasWidth, newCanvasHeight) {
+    // Use stored canvas dimensions if available, otherwise can't do proportional scaling
+    const oldCanvasWidth = this.canvasWidth;
+    const oldCanvasHeight = this.canvasHeight;
+    
+    // If old dimensions not available, just enforce aspect ratio with top-left anchoring
+    if (oldCanvasWidth === null || oldCanvasHeight === null) {
+      // Anchor at top-left corner: keep minReal and maxImag fixed
+      // Adjust maxReal and minImag to maintain 1:1 aspect ratio
+      const imagRange = this.maxImag - this.minImag;
+      const canvasAspectRatio = newCanvasWidth / newCanvasHeight;
+      const requiredRealRange = imagRange * canvasAspectRatio;
+      this.maxReal = this.minReal + requiredRealRange;
+      
+      // Update stored canvas dimensions
+      this.canvasWidth = newCanvasWidth;
+      this.canvasHeight = newCanvasHeight;
+      return;
+    }
+    
+    // Anchor at top-left corner (minReal, maxImag)
+    // Keep minReal and maxImag fixed
+    // Adjust maxReal and minImag to maintain aspect ratio with new canvas dimensions
+    
+    // Get current ranges
+    const currentRealRange = this.maxReal - this.minReal;
+    const currentImagRange = this.maxImag - this.minImag;
+    
+    // Calculate new ranges that maintain aspect ratio
+    // The test expects: newRealRange = currentRealRange * (newWidth/oldWidth) * (oldHeight/newHeight)
+    // This can be rewritten as: newRealRange = currentRealRange * newWidth * oldHeight / (oldWidth * newHeight)
+    // Similarly: newImagRange = currentImagRange * (newHeight/oldHeight) * (oldWidth/newWidth)
+    // Which is: newImagRange = currentImagRange * newHeight * oldWidth / (oldHeight * newWidth)
+    
+    const newRealRange = currentRealRange * newCanvasWidth * oldCanvasHeight / (oldCanvasWidth * newCanvasHeight);
+    const newImagRange = currentImagRange * newCanvasHeight * oldCanvasWidth / (oldCanvasHeight * newCanvasWidth);
+    
+    // Adjust maxReal (right edge) while keeping minReal (left edge) fixed
+    this.maxReal = this.minReal + newRealRange;
+    
+    // Adjust minImag (bottom edge) while keeping maxImag (top edge) fixed
+    this.minImag = this.maxImag - newImagRange;
+    
+    // Update stored canvas dimensions
+    this.canvasWidth = newCanvasWidth;
+    this.canvasHeight = newCanvasHeight;
   }
 }

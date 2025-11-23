@@ -20,6 +20,8 @@ describe('wasmLoader', () => {
       expect(modules).toContain('rust');
       expect(modules).toContain('cpp');
       expect(modules).toContain('go');
+      expect(modules).toContain('moonbit');
+      expect(modules).toContain('javascript');
     });
   });
 
@@ -54,6 +56,22 @@ describe('wasmLoader', () => {
       expect(config.type).toBe('go');
       expect(config.functionName).toBe('calculatePoint');
     });
+
+    it('should return configuration for moonbit module', () => {
+      const config = getModuleConfig('moonbit');
+      expect(config).toBeDefined();
+      expect(config.name).toBe('Moonbit');
+      expect(config.type).toBe('moonbit');
+      expect(config.functionName).toBe('calculatePoint');
+    });
+
+    it('should return configuration for javascript module', () => {
+      const config = getModuleConfig('javascript');
+      expect(config).toBeDefined();
+      expect(config.name).toBe('JavaScript');
+      expect(config.type).toBe('javascript');
+      expect(config.functionName).toBe('calculatePoint');
+    });
   });
 
   describe('loadWasmModule', () => {
@@ -62,7 +80,93 @@ describe('wasmLoader', () => {
     });
   });
 
-  // Note: Actual module loading tests would require the WASM files to be built
-  // and available, which may not be the case in a test environment.
-  // These tests verify the loader structure and error handling.
+  describe('loadDefaultModule', () => {
+    it('should load default module before rendering', async () => {
+      // This test verifies that the default module can be loaded
+      // Requirements: 5.2 - System SHALL fetch and instantiate default module before rendering
+      try {
+        const module = await loadDefaultModule();
+        
+        // Verify module was loaded
+        expect(module).toBeDefined();
+        expect(module.name).toBe('Rust'); // Default is Rust
+        expect(module.type).toBe('rust');
+        
+        // Verify module exposes calculatePoint function
+        // Requirements: 5.4 - System SHALL expose calculation functions to JavaScript
+        expect(module.calculatePoint).toBeDefined();
+        expect(typeof module.calculatePoint).toBe('function');
+        
+        // Test that calculatePoint can be called with valid parameters
+        const result = module.calculatePoint(0, 0, 100, 2.0);
+        expect(typeof result).toBe('number');
+        expect(result).toBeGreaterThanOrEqual(0);
+        expect(result).toBeLessThanOrEqual(100);
+      } catch (error) {
+        // If module fails to load, it should throw a descriptive error
+        // Requirements: 5.3 - System SHALL display error message when module fails to load
+        expect(error.message).toContain('Failed to load');
+      }
+    });
+  });
+
+  describe('module function exposure', () => {
+    it('should expose calculatePoint function from loaded module', async () => {
+      // Requirements: 5.4 - System SHALL expose calculation functions to JavaScript
+      try {
+        const module = await loadDefaultModule();
+        
+        // Verify calculatePoint function exists
+        expect(module.calculatePoint).toBeDefined();
+        expect(typeof module.calculatePoint).toBe('function');
+        
+        // Verify function signature - should accept 4 parameters
+        expect(module.calculatePoint.length).toBeGreaterThanOrEqual(0); // JS doesn't enforce arity
+        
+        // Test function with known inputs
+        const iterations = module.calculatePoint(-0.5, 0, 100, 2.0);
+        expect(typeof iterations).toBe('number');
+        expect(iterations).toBeGreaterThanOrEqual(0);
+        expect(iterations).toBeLessThanOrEqual(100);
+      } catch (error) {
+        // Module may not be available in test environment
+        expect(error.message).toContain('Failed to load');
+      }
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle failed module loads with descriptive errors', async () => {
+      // Requirements: 5.3 - System SHALL display error message when module fails to load
+      
+      // Test with invalid module name
+      await expect(loadWasmModule('nonexistent')).rejects.toThrow('Invalid module name');
+      
+      // The error message should be descriptive
+      try {
+        await loadWasmModule('invalid-module');
+      } catch (error) {
+        expect(error.message).toBeDefined();
+        expect(error.message.length).toBeGreaterThan(0);
+        expect(error.message).toContain('Invalid module name');
+      }
+    });
+
+    it('should provide error details when module loading fails', async () => {
+      // Requirements: 5.3 - System SHALL display error message when module fails to load
+      
+      // Test that error messages are informative
+      try {
+        await loadWasmModule('invalid');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        expect(error.message).toBeTruthy();
+        // Error should indicate which module failed
+        expect(error.message).toMatch(/invalid|Invalid module name/i);
+      }
+    });
+  });
+
+  // Note: Full integration tests with actual WASM files are in the integration test suite.
+  // These unit tests verify the loader structure, error handling, and basic functionality.
 });

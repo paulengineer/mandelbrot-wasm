@@ -1,0 +1,12 @@
+{
+  "is-main": true,
+  "import": [],
+  "wbtest-import": [],
+  "link": {
+    "wasm": {
+      "exports": [
+        "calculatePoint"
+      ]
+    }
+  }
+}

@@ -82,7 +82,8 @@ export class ModuleSelector {
     button.setAttribute('data-module', moduleName);
     button.setAttribute('role', 'button');
     button.setAttribute('aria-pressed', moduleName === this.currentModule ? 'true' : 'false');
-    button.setAttribute('aria-label', `Select ${config.name} WebAssembly module`);
+    const moduleType = config.type === 'javascript' ? 'calculation module' : 'WebAssembly module';
+    button.setAttribute('aria-label', `Select ${config.name} ${moduleType}`);
     
     // Add active class to default module
     if (moduleName === this.currentModule) {
@@ -95,6 +96,82 @@ export class ModuleSelector {
     });
 
     return button;
+  }
+
+  /**
+   * Update the render time display
+   * @param {number} timeMs - Render time in milliseconds
+   */
+  updateRenderTime(timeMs) {
+    if (!this.renderTimeElement) {
+      console.warn('Render time element not found');
+      return;
+    }
+
+    // Display time in whole milliseconds
+    const wholeMs = Math.round(timeMs);
+    this.renderTimeElement.textContent = `Render time: ${wholeMs}ms`;
+  }
+
+  /**
+   * Show modal error dialog
+   * @param {string} message - Error message to display
+   */
+  showError(message) {
+    const modal = document.getElementById('error-modal');
+    const modalMessage = document.getElementById('modal-message');
+    const closeButton = document.getElementById('modal-close');
+    
+    if (!modal || !modalMessage || !closeButton) {
+      console.error('Modal elements not found in DOM');
+      return;
+    }
+
+    // Set the error message
+    modalMessage.textContent = message;
+    
+    // Show the modal
+    modal.classList.remove('hidden');
+    
+    // Focus the close button for accessibility
+    setTimeout(() => closeButton.focus(), 100);
+    
+    // Set up close handler (remove any existing listeners first)
+    const newCloseButton = closeButton.cloneNode(true);
+    closeButton.parentNode.replaceChild(newCloseButton, closeButton);
+    
+    // Add click handler to close button
+    newCloseButton.addEventListener('click', () => {
+      this.hideError();
+    });
+    
+    // Add click handler to overlay (clicking outside modal closes it)
+    const handleOverlayClick = (event) => {
+      if (event.target === modal) {
+        this.hideError();
+        modal.removeEventListener('click', handleOverlayClick);
+      }
+    };
+    modal.addEventListener('click', handleOverlayClick);
+    
+    // Add escape key handler
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        this.hideError();
+        document.removeEventListener('keydown', handleEscapeKey);
+      }
+    };
+    document.addEventListener('keydown', handleEscapeKey);
+  }
+
+  /**
+   * Hide modal error dialog
+   */
+  hideError() {
+    const modal = document.getElementById('error-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
   }
 
   /**
@@ -115,7 +192,7 @@ export class ModuleSelector {
 
     // Create title
     const title = document.createElement('h3');
-    title.textContent = 'WebAssembly Module';
+    title.textContent = 'Calculation Module';
     this.container.appendChild(title);
 
     // Create button container
@@ -130,6 +207,12 @@ export class ModuleSelector {
     });
 
     this.container.appendChild(buttonContainer);
+
+    // Create render time display
+    this.renderTimeElement = document.createElement('div');
+    this.renderTimeElement.className = 'render-time';
+    this.renderTimeElement.textContent = 'Render time: --ms';
+    this.container.appendChild(this.renderTimeElement);
   }
 
   /**

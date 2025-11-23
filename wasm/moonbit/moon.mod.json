@@ -1,0 +1,10 @@
+{
+  "name": "moonbit/mandelbrot",
+  "version": "0.1.0",
+  "deps": {},
+  "readme": "README.md",
+  "repository": "",
+  "license": "Apache-2.0",
+  "keywords": [],
+  "description": "Mandelbrot set calculation in Moonbit for WebAssembly"
+}

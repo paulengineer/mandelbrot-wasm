@@ -22,6 +22,37 @@ describe('ViewportManager', () => {
       expect(bounds.minImag).toBe(-1.0);
       expect(bounds.maxImag).toBe(1.0);
     });
+
+    it('should initialize with specification-compliant bounds (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)', () => {
+      // Requirements 1.5: Initial values should be -2.0 to 1.0 on real axis, -1.0 to 1.0 on imaginary axis
+      const specViewport = new ViewportManager({
+        minReal: -2.0,
+        maxReal: 1.0,
+        minImag: -1.0,
+        maxImag: 1.0
+      });
+      
+      const bounds = specViewport.getBounds();
+      expect(bounds.minReal).toBe(-2.0);
+      expect(bounds.maxReal).toBe(1.0);
+      expect(bounds.minImag).toBe(-1.0);
+      expect(bounds.maxImag).toBe(1.0);
+    });
+
+    it('should initialize with custom bounds when provided', () => {
+      const customViewport = new ViewportManager({
+        minReal: -1.0,
+        maxReal: 0.5,
+        minImag: -0.5,
+        maxImag: 0.5
+      });
+      
+      const bounds = customViewport.getBounds();
+      expect(bounds.minReal).toBe(-1.0);
+      expect(bounds.maxReal).toBe(0.5);
+      expect(bounds.minImag).toBe(-0.5);
+      expect(bounds.maxImag).toBe(0.5);
+    });
   });
 
   describe('canvasToComplex', () => {
@@ -41,6 +72,86 @@ describe('ViewportManager', () => {
       const result = viewport.canvasToComplex(400, 300, 800, 600);
       expect(result.real).toBeCloseTo(-0.75); // midpoint of -2.5 and 1.0
       expect(result.imag).toBeCloseTo(0.0);   // midpoint of -1.0 and 1.0
+    });
+
+    it('should convert canvas coordinates with specification-compliant viewport', () => {
+      // Requirements 1.3, 1.5: Test coordinate conversion with spec viewport (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)
+      const specViewport = new ViewportManager({
+        minReal: -2.0,
+        maxReal: 1.0,
+        minImag: -1.0,
+        maxImag: 1.0
+      });
+      
+      const canvasWidth = 800;
+      const canvasHeight = 600;
+      
+      // Test top-left corner (0, 0) -> (-2.0, 1.0)
+      const topLeft = specViewport.canvasToComplex(0, 0, canvasWidth, canvasHeight);
+      expect(topLeft.real).toBeCloseTo(-2.0);
+      expect(topLeft.imag).toBeCloseTo(1.0);
+      
+      // Test bottom-right corner (800, 600) -> (1.0, -1.0)
+      const bottomRight = specViewport.canvasToComplex(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+      expect(bottomRight.real).toBeCloseTo(1.0);
+      expect(bottomRight.imag).toBeCloseTo(-1.0);
+      
+      // Test center (400, 300) -> (-0.5, 0.0)
+      const center = specViewport.canvasToComplex(canvasWidth / 2, canvasHeight / 2, canvasWidth, canvasHeight);
+      expect(center.real).toBeCloseTo(-0.5); // midpoint of -2.0 and 1.0
+      expect(center.imag).toBeCloseTo(0.0);  // midpoint of -1.0 and 1.0
+    });
+
+    it('should convert known canvas coordinates correctly', () => {
+      // Test with known values for verification
+      const canvasWidth = 1000;
+      const canvasHeight = 1000;
+      
+      // At (250, 250) with viewport (-2.5 to 1.0, -1.0 to 1.0)
+      // Real: -2.5 + (250/1000) * 3.5 = -2.5 + 0.875 = -1.625
+      // Imag: 1.0 - (250/1000) * 2.0 = 1.0 - 0.5 = 0.5
+      const result1 = viewport.canvasToComplex(250, 250, canvasWidth, canvasHeight);
+      expect(result1.real).toBeCloseTo(-1.625);
+      expect(result1.imag).toBeCloseTo(0.5);
+      
+      // At (750, 750)
+      // Real: -2.5 + (750/1000) * 3.5 = -2.5 + 2.625 = 0.125
+      // Imag: 1.0 - (750/1000) * 2.0 = 1.0 - 1.5 = -0.5
+      const result2 = viewport.canvasToComplex(750, 750, canvasWidth, canvasHeight);
+      expect(result2.real).toBeCloseTo(0.125);
+      expect(result2.imag).toBeCloseTo(-0.5);
+    });
+
+    it('should handle edge cases at canvas boundaries', () => {
+      const canvasWidth = 640;
+      const canvasHeight = 480;
+      
+      // Test all four corners
+      const topLeft = viewport.canvasToComplex(0, 0, canvasWidth, canvasHeight);
+      expect(topLeft.real).toBeCloseTo(-2.5);
+      expect(topLeft.imag).toBeCloseTo(1.0);
+      
+      const topRight = viewport.canvasToComplex(canvasWidth, 0, canvasWidth, canvasHeight);
+      expect(topRight.real).toBeCloseTo(1.0);
+      expect(topRight.imag).toBeCloseTo(1.0);
+      
+      const bottomLeft = viewport.canvasToComplex(0, canvasHeight, canvasWidth, canvasHeight);
+      expect(bottomLeft.real).toBeCloseTo(-2.5);
+      expect(bottomLeft.imag).toBeCloseTo(-1.0);
+      
+      const bottomRight = viewport.canvasToComplex(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
+      expect(bottomRight.real).toBeCloseTo(1.0);
+      expect(bottomRight.imag).toBeCloseTo(-1.0);
+    });
+
+    it('should convert coordinates proportionally to canvas size', () => {
+      // Test that conversion scales correctly with different canvas sizes
+      const smallCanvas = viewport.canvasToComplex(100, 100, 200, 200);
+      const largeCanvas = viewport.canvasToComplex(400, 400, 800, 800);
+      
+      // Both should map to the same complex coordinate (halfway point)
+      expect(smallCanvas.real).toBeCloseTo(largeCanvas.real);
+      expect(smallCanvas.imag).toBeCloseTo(largeCanvas.imag);
     });
   });
 

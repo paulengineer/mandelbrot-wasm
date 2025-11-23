@@ -6,7 +6,7 @@
  */
 
 /**
- * Module configuration for each WebAssembly implementation
+ * Module configuration for each WebAssembly implementation and JavaScript
  */
 const MODULE_CONFIGS = {
   rust: {
@@ -28,6 +28,19 @@ const MODULE_CONFIGS = {
     path: '/wasm/go/mandelbrot.wasm',
     wasmPath: '/wasm/go/mandelbrot.wasm',
     type: 'go', // TinyGo/Go wasm
+    functionName: 'calculatePoint'
+  },
+  moonbit: {
+    name: 'Moonbit',
+    path: '/wasm/moonbit/build/mandelbrot.wasm',
+    wasmPath: '/wasm/moonbit/build/mandelbrot.wasm',
+    type: 'moonbit', // Moonbit wasm
+    functionName: 'calculatePoint'
+  },
+  javascript: {
+    name: 'JavaScript',
+    path: '/src/jsCalculator.js',
+    type: 'javascript', // Pure JavaScript implementation
     functionName: 'calculatePoint'
   }
 };
@@ -147,8 +160,77 @@ async function loadGoModule(config) {
 }
 
 /**
- * Load a WebAssembly module by name
- * @param {string} moduleName - Name of the module to load ('rust', 'cpp', or 'go')
+ * Load and instantiate a Moonbit WebAssembly module
+ * @param {Object} config - Module configuration
+ * @returns {Promise<Object>} Module instance with calculatePoint function
+ */
+async function loadMoonbitModule(config) {
+  try {
+    // Fetch the WebAssembly binary
+    const response = await fetch(config.wasmPath);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch Moonbit module: ${response.status} ${response.statusText}`);
+    }
+    
+    const wasmBytes = await response.arrayBuffer();
+    
+    // Instantiate the WebAssembly module with minimal imports
+    const result = await WebAssembly.instantiate(wasmBytes, {
+      spectest: {
+        print_i32: (x) => console.log(x),
+        print_f64: (x) => console.log(x)
+      }
+    });
+    
+    // Verify the function exists
+    if (!result.instance.exports.calculatePoint) {
+      throw new Error('calculatePoint function not found in Moonbit module');
+    }
+    
+    // Return wrapper with standardized interface
+    return {
+      calculatePoint: (real, imag, maxIterations, escapeRadius) => {
+        return result.instance.exports.calculatePoint(real, imag, maxIterations, escapeRadius);
+      },
+      name: config.name,
+      type: 'moonbit'
+    };
+  } catch (error) {
+    throw new Error(`Failed to load Moonbit module: ${error.message}`);
+  }
+}
+
+/**
+ * Load a JavaScript calculation module
+ * @param {Object} config - Module configuration
+ * @returns {Promise<Object>} Module instance with calculatePoint function
+ */
+async function loadJavaScriptModule(config) {
+  try {
+    // Dynamically import the JavaScript calculator module
+    const jsModule = await import(config.path);
+    
+    // Verify the function exists
+    if (!jsModule.calculatePoint) {
+      throw new Error('calculatePoint function not found in JavaScript module');
+    }
+    
+    // Return wrapper with standardized interface
+    return {
+      calculatePoint: (real, imag, maxIterations, escapeRadius) => {
+        return jsModule.calculatePoint(real, imag, maxIterations, escapeRadius);
+      },
+      name: config.name,
+      type: 'javascript'
+    };
+  } catch (error) {
+    throw new Error(`Failed to load JavaScript module: ${error.message}`);
+  }
+}
+
+/**
+ * Load a WebAssembly or JavaScript module by name
+ * @param {string} moduleName - Name of the module to load ('rust', 'cpp', 'go', or 'javascript')
  * @returns {Promise<Object>} Module instance with calculatePoint function
  * @throws {Error} If module name is invalid or loading fails
  */
@@ -174,6 +256,12 @@ export async function loadWasmModule(moduleName) {
       case 'go':
         module = await loadGoModule(config);
         break;
+      case 'moonbit':
+        module = await loadMoonbitModule(config);
+        break;
+      case 'javascript':
+        module = await loadJavaScriptModule(config);
+        break;
       default:
         throw new Error(`Unknown module type: ${config.type}`);
     }
@@ -183,7 +271,7 @@ export async function loadWasmModule(moduleName) {
       throw new Error(`Module ${config.name} does not expose calculatePoint function`);
     }
     
-    console.log(`Successfully loaded ${config.name} WebAssembly module`);
+    console.log(`Successfully loaded ${config.name} module`);
     return module;
     
   } catch (error) {

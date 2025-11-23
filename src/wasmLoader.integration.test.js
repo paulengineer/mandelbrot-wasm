@@ -76,9 +76,37 @@ describe('wasmLoader integration', () => {
     }, 10000);
   });
 
+  describe('loadWasmModule - JavaScript', () => {
+    it('should load JavaScript module and expose calculatePoint function', async () => {
+      try {
+        const module = await loadWasmModule('javascript');
+        
+        // Verify module exposes required function
+        expect(module.calculatePoint).toBeDefined();
+        expect(typeof module.calculatePoint).toBe('function');
+        expect(module.name).toBe('JavaScript');
+        expect(module.type).toBe('javascript');
+        
+        // Test the function with a known point
+        // Point (0, 0) is in the Mandelbrot set
+        const iterations = module.calculatePoint(0.0, 0.0, 100, 2.0);
+        expect(iterations).toBe(100);
+        
+        // Point (2, 2) escapes quickly
+        const iterations2 = module.calculatePoint(2.0, 2.0, 100, 2.0);
+        expect(iterations2).toBeLessThan(10);
+        
+        console.log('✓ JavaScript module loaded and tested successfully');
+      } catch (error) {
+        console.warn('Warning: Could not load JavaScript module:', error.message);
+        throw error; // JavaScript module should always be available
+      }
+    }, 10000);
+  });
+
   describe('Module function verification', () => {
     it('should verify all loaded modules expose calculatePoint', async () => {
-      const modulesToTest = ['rust', 'cpp'];
+      const modulesToTest = ['rust', 'cpp', 'javascript'];
       
       for (const moduleName of modulesToTest) {
         try {
@@ -95,6 +123,10 @@ describe('wasmLoader integration', () => {
           expect(result).toBeLessThanOrEqual(10);
           
         } catch (error) {
+          // JavaScript module should always work, so don't skip it silently
+          if (moduleName === 'javascript') {
+            throw error;
+          }
           console.warn(`Skipping ${moduleName} module test:`, error.message);
         }
       }

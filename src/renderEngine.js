@@ -34,6 +34,9 @@ export class RenderEngine {
     this.maxIterations = options.maxIterations || DEFAULT_MAX_ITERATIONS;
     this.escapeRadius = options.escapeRadius || DEFAULT_ESCAPE_RADIUS;
     
+    // Render timing
+    this.lastRenderTime = 0;
+    
     // Verify canvas context
     if (!this.ctx) {
       throw new Error('Failed to get 2D rendering context from canvas');
@@ -61,8 +64,12 @@ export class RenderEngine {
   /**
    * Render the Mandelbrot set to the canvas
    * Iterates over all pixels, calculates iteration counts, maps to colors, and draws
+   * @returns {number} Render time in milliseconds
    */
   render() {
+    // Start timing
+    const startTime = performance.now();
+    
     const width = this.canvas.width;
     const height = this.canvas.height;
     
@@ -108,6 +115,12 @@ export class RenderEngine {
     
     // Draw the ImageData to the canvas in one operation
     this.ctx.putImageData(imageData, 0, 0);
+    
+    // End timing and store result
+    const endTime = performance.now();
+    this.lastRenderTime = endTime - startTime;
+    
+    return this.lastRenderTime;
   }
 
   /**
@@ -134,5 +147,13 @@ export class RenderEngine {
       maxIterations: this.maxIterations,
       escapeRadius: this.escapeRadius
     };
+  }
+
+  /**
+   * Get the last render time in milliseconds
+   * @returns {number} Last render time in milliseconds
+   */
+  getLastRenderTime() {
+    return this.lastRenderTime;
   }
 }

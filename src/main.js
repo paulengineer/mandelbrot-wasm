@@ -11,6 +11,7 @@ import { ViewportManager } from './viewportManager.js';
 import { RenderEngine } from './renderEngine.js';
 import { EventHandler } from './eventHandler.js';
 import { ModuleSelector } from './moduleSelector.js';
+import { ViewportInfo } from './viewportInfo.js';
 
 /**
  * Application state
@@ -20,18 +21,36 @@ let viewportManager;
 let renderEngine;
 let eventHandler;
 let moduleSelector;
+let viewportInfo;
 let currentWasmModule;
 
 /**
- * Display an error message to the user
+ * Display an error message to the user using modal dialog
  * @param {string} message - Error message to display
  */
 function displayError(message) {
-  const errorElement = document.getElementById('error-message');
-  if (errorElement) {
-    errorElement.textContent = message;
-    errorElement.classList.remove('hidden');
-    console.error('Application error:', message);
+  console.error('Application error:', message);
+  
+  // Use modal dialog if module selector is available
+  if (moduleSelector) {
+    moduleSelector.showError(message);
+  } else {
+    // Fallback: directly manipulate modal if module selector not yet initialized
+    const modal = document.getElementById('error-modal');
+    const modalMessage = document.getElementById('modal-message');
+    const closeButton = document.getElementById('modal-close');
+    
+    if (modal && modalMessage && closeButton) {
+      modalMessage.textContent = message;
+      modal.classList.remove('hidden');
+      
+      // Set up close handler
+      const handleClose = () => {
+        modal.classList.add('hidden');
+        closeButton.removeEventListener('click', handleClose);
+      };
+      closeButton.addEventListener('click', handleClose);
+    }
   }
 }
 
@@ -39,9 +58,13 @@ function displayError(message) {
  * Hide the error message
  */
 function hideError() {
-  const errorElement = document.getElementById('error-message');
-  if (errorElement) {
-    errorElement.classList.add('hidden');
+  if (moduleSelector) {
+    moduleSelector.hideError();
+  } else {
+    const modal = document.getElementById('error-modal');
+    if (modal) {
+      modal.classList.add('hidden');
+    }
   }
 }
 
@@ -87,10 +110,21 @@ function initializeViewport() {
     maxImag: 1.0
   };
   
-  viewportManager = new ViewportManager(initialBounds);
+  // Pass canvas dimensions to enforce 1:1 aspect ratio
+  viewportManager = new ViewportManager(initialBounds, canvas.width, canvas.height);
   console.log('Viewport initialized:', viewportManager.getBounds());
   
   return viewportManager;
+}
+
+/**
+ * Handle render completion and update render time display
+ * @param {number} renderTime - Render time in milliseconds
+ */
+function handleRenderComplete(renderTime) {
+  if (moduleSelector) {
+    moduleSelector.updateRenderTime(renderTime);
+  }
 }
 
 /**
@@ -110,8 +144,12 @@ async function handleModuleChange(newModuleName, previousModuleName) {
     const newModule = await loadWasmModule(newModuleName);
     
     // Update the render engine with the new module
-    // This preserves the current viewport state
+    // This preserves the current viewport state and triggers a render
     renderEngine.setWasmModule(newModule);
+    
+    // Update render time after module switch
+    const renderTime = renderEngine.getLastRenderTime();
+    handleRenderComplete(renderTime);
     
     // Store the new module
     currentWasmModule = newModule;
@@ -122,8 +160,8 @@ async function handleModuleChange(newModuleName, previousModuleName) {
   } catch (error) {
     console.error(`Failed to switch to ${newModuleName} module:`, error);
     
-    // Display error to user
-    displayError(`Failed to load ${newModuleName} module. ${error.message}`);
+    // Display modal error to user
+    moduleSelector.showError(`Failed to load ${newModuleName} module. ${error.message}`);
     
     // Revert to previous module in the UI
     moduleSelector.selectModule(previousModuleName);
@@ -136,6 +174,16 @@ async function handleModuleChange(newModuleName, previousModuleName) {
 }
 
 /**
+ * Perform a render and update the render time display
+ */
+function renderAndUpdateTime() {
+  if (!renderEngine || !moduleSelector) return;
+  
+  const renderTime = renderEngine.render();
+  moduleSelector.updateRenderTime(renderTime);
+}
+
+/**
  * Set up window resize listener
  */
 function setupResizeListener() {
@@ -143,10 +191,18 @@ function setupResizeListener() {
     // Resize canvas to match new viewport
     resizeCanvas();
     
-    // Trigger re-render with new canvas dimensions
-    if (renderEngine) {
-      renderEngine.render();
+    // Update viewport manager to enforce 1:1 aspect ratio with new canvas dimensions
+    if (viewportManager) {
+      viewportManager.resize(canvas.width, canvas.height);
     }
+    
+    // Update viewport info after resize
+    if (viewportInfo) {
+      viewportInfo.updateBounds();
+    }
+    
+    // Trigger re-render with new canvas dimensions and update time
+    renderAndUpdateTime();
   });
   
   console.log('Resize listener attached');
@@ -176,22 +232,27 @@ async function initializeApplication() {
     renderEngine = new RenderEngine(canvas, currentWasmModule, viewportManager);
     console.log('✓ Render engine initialized');
     
-    // Step 5: Initialize event handler for pan and zoom
-    eventHandler = new EventHandler(canvas, viewportManager, renderEngine);
+    // Step 5: Initialize viewport info UI
+    viewportInfo = new ViewportInfo(viewportManager);
+    viewportInfo.render();
+    console.log('✓ Viewport info initialized');
+    
+    // Step 6: Initialize event handler for pan and zoom
+    eventHandler = new EventHandler(canvas, viewportManager, renderEngine, handleRenderComplete, viewportInfo);
     console.log('✓ Event handler initialized');
     
-    // Step 6: Initialize module selector UI
+    // Step 7: Initialize module selector UI
     moduleSelector = new ModuleSelector(handleModuleChange);
     moduleSelector.render();
     console.log('✓ Module selector initialized');
     
-    // Step 7: Set up resize listener
+    // Step 8: Set up resize listener
     setupResizeListener();
     console.log('✓ Resize listener attached');
     
-    // Step 8: Perform initial render
+    // Step 9: Perform initial render
     console.log('Performing initial render...');
-    renderEngine.render();
+    renderAndUpdateTime();
     console.log('✓ Initial render complete');
     
     console.log('Mandelbrot Visualizer initialized successfully!');

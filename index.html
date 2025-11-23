@@ -16,8 +16,22 @@
     <!-- Module selector buttons will be dynamically populated by JavaScript -->
   </div>
   
+  <!-- Viewport info overlay UI -->
+  <div id="viewport-info" class="viewport-info" role="region" aria-label="Viewport information">
+    <!-- Viewport bounds will be dynamically populated by JavaScript -->
+  </div>
+  
   <!-- Error message display -->
   <div id="error-message" class="error-message hidden" role="alert" aria-live="assertive"></div>
+  
+  <!-- Modal error dialog -->
+  <div id="error-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <h2 id="modal-title" class="modal-title">Error</h2>
+      <p id="modal-message" class="modal-message"></p>
+      <button id="modal-close" class="modal-close-button">Close</button>
+    </div>
+  </div>
   
   <!-- Main application script -->
   <script type="module" src="src/main.js"></script>

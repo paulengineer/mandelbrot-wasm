@@ -11,11 +11,15 @@ export class EventHandler {
    * @param {HTMLCanvasElement} canvas - The canvas element to attach event listeners to
    * @param {ViewportManager} viewportManager - Viewport manager for coordinate updates
    * @param {RenderEngine} renderEngine - Render engine to trigger re-renders
+   * @param {Function} onRenderComplete - Optional callback called after each render with render time
+   * @param {ViewportInfo} viewportInfo - Optional viewport info UI to update after viewport changes
    */
-  constructor(canvas, viewportManager, renderEngine) {
+  constructor(canvas, viewportManager, renderEngine, onRenderComplete = null, viewportInfo = null) {
     this.canvas = canvas;
     this.viewportManager = viewportManager;
     this.renderEngine = renderEngine;
+    this.onRenderComplete = onRenderComplete;
+    this.viewportInfo = viewportInfo;
     
     // Mouse state tracking
     this.isPanning = false;
@@ -94,8 +98,6 @@ export class EventHandler {
     const deltaY = event.clientY - this.lastMouseY;
     
     // Update viewport using ViewportManager
-    // Note: We pass negative deltas because dragging right should move the view left
-    // (i.e., we're moving the viewport in the opposite direction of the mouse)
     this.viewportManager.pan(
       deltaX,
       deltaY,
@@ -103,12 +105,20 @@ export class EventHandler {
       this.canvas.height
     );
     
+    // Update viewport info after pan
+    if (this.viewportInfo) {
+      this.viewportInfo.updateBounds();
+    }
+    
     // Update last mouse position for next move event
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
     
     // Trigger immediate re-render for smooth panning feedback
-    this.renderEngine.render();
+    const renderTime = this.renderEngine.render();
+    if (this.onRenderComplete) {
+      this.onRenderComplete(renderTime);
+    }
     
     // Prevent default behavior
     event.preventDefault();
@@ -128,10 +138,18 @@ export class EventHandler {
     if (this.isPanning) {
       this.isPanning = false;
       
+      // Update viewport info after pan completes
+      if (this.viewportInfo) {
+        this.viewportInfo.updateBounds();
+      }
+      
       // Trigger final render after pan completes
       // (This may be redundant if we rendered on every move, but ensures
       // we have a final render even if the mouse didn't move)
-      this.renderEngine.render();
+      const renderTime = this.renderEngine.render();
+      if (this.onRenderComplete) {
+        this.onRenderComplete(renderTime);
+      }
     }
   }
 
@@ -164,8 +182,16 @@ export class EventHandler {
       this.canvas.height
     );
     
+    // Update viewport info after zoom
+    if (this.viewportInfo) {
+      this.viewportInfo.updateBounds();
+    }
+    
     // Trigger render after zoom completes
-    this.renderEngine.render();
+    const renderTime = this.renderEngine.render();
+    if (this.onRenderComplete) {
+      this.onRenderComplete(renderTime);
+    }
   }
 
   /**
