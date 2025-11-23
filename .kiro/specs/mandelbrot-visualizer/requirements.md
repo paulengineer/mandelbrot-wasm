@@ -23,10 +23,11 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 #### Acceptance Criteria
 
 1. WHEN the page loads, THE Canvas SHALL fill the entire browser viewport
-2. WHEN the browser window is resized, THE Canvas SHALL adjust its dimensions to maintain full viewport coverage
+2. WHEN the browser window is resized, THE Canvas SHALL maintain current Complex Plane view anchored at top left.
 3. WHEN the Canvas is rendered, THE Mandelbrot Set SHALL be displayed with appropriate initial coordinates showing the classic view
 4. WHEN the Canvas displays the fractal, THE System SHALL use color gradients to represent iteration counts for visual clarity
-5. WHEN the initial render completes, THE Canvas SHALL display the region from -2.5 to 1.0 on the real axis and -1.0 to 1.0 on the imaginary axis
+5. WHEN the initial render occurs, THE System SHALL use initial values of -2.0 to 1.0 on the real axis and -1.0 to 1.0 on the imaginary axis, centered in the canvas and view scale so that no cropping occurs.
+6. THE Canvas SHALL maintain 1:1 aspect ratio between the real and imaginary axis
 
 ### Requirement 2
 
@@ -62,7 +63,8 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 2. WHEN a user scrolls the mouse wheel backward, THE System SHALL increase the viewport size to zoom out from the cursor position
 3. WHEN zooming occurs, THE System SHALL maintain the cursor position as the zoom focal point in the complex plane
 4. WHEN the zoom level changes, THE System SHALL adjust viewport boundaries proportionally while preserving the aspect ratio
-5. WHEN a zoom operation completes, THE System SHALL trigger a re-calculation and re-render of the Mandelbrot Set
+6. WHEN a zoom operation completes, THE system SHALL resize the existing image so that the zooming is fast and feels responsive.
+5. WHEN a configurable amount of time has elapsed (1000ms) since the last zoom operation and no additional zoom has occurred, THE System SHALL trigger a re-calculation and re-render of the Mandelbrot Set.  
 
 ### Requirement 5
 
@@ -70,13 +72,31 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 
 #### Acceptance Criteria
 
-1. WHEN the WebAssembly modules are built, THE System SHALL compile source code written in Rust, C/C++, and Go to Wasm format
+1. WHEN the WebAssembly modules are built, THE System SHALL compile source code written in Rust, C/C++, Moonbit and Golang to Wasm format
 2. WHEN the page loads, THE System SHALL fetch and instantiate the default WebAssembly module before rendering
-3. WHEN the Wasm module fails to load, THE System SHALL display an error message to the user
+3. WHEN the Wasm module fails to load, THE System SHALL display a modal error message to the user, and the user must close the message to clear it from the UI.
 4. WHEN the Wasm module is instantiated, THE System SHALL expose calculation functions to JavaScript
 5. WHEN calculation functions are called, THE System SHALL pass memory buffers efficiently between JavaScript and WebAssembly
 6. WHEN the user changes the webassembly, the current viewport shall be retained.
 7. WHEN the page loads, there must be a control overlaying the canvas to allow the user to select between available webassembly modules, with the default module currently selected.
+
+### Requirement 5.1
+
+**User Story:** As a user, I want to be able to select 'Javascript' as an additional option to the list of WebAssembly modules so that I can compare the performance of Mandlebrot implementation in pure javascript.
+
+#### Acceptance Criteria
+
+1. THE System SHALL have a mode of operation where the Mandelbrot Set written in Javascript is used instead of any WASM module. 
+2. WHEN the web assembly module selector is displayed, THE System SHALL include a Javascript option in addition to the web assembly module options.
+
+### Requirement 5.2
+
+**User Story:** As a user, I want to see the time (in whole miliseconds) that it took to perform the Mandelbrot Set calculations for the current render.
+
+#### Acceptance Criteria
+
+1. WHEN a render occurs, THE System SHALL display the time taken in the web assembly overlay.
+2. WHEN a web assembly module is selected, THE System SHALL use the total time between making the request to the WASM module and receiving the response.
 
 ### Requirement 6
 
@@ -89,3 +109,12 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 3. WHEN a point escapes quickly (low iteration count), THE System SHALL render it in colors representing the exterior of the set
 4. WHEN rendering colors, THE System SHALL apply smooth color gradients to avoid banding artifacts
 5. WHEN the color mapping is applied, THE System SHALL ensure visual contrast between adjacent iteration levels
+
+### Requirement 7
+
+**User Story** As a user, I want to see the min/max values of real and imaginary axis according to the curent Complex Plane in the current canvas dimensions, displayed in an overlay.
+
+#### Acceptance Criteria
+1. WHEN a zoom operation occurs, THE System SHALL update the min/max values.
+1. WHEN a pan operation occurs, THE System SHALL update the min/max values.
+1. WHEN the browser window is resized, THE System SHALL update the min/max values.
