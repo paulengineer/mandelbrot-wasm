@@ -15,10 +15,12 @@ The application follows a request-render cycle where user interactions update vi
 │                     Browser Window                       │
 │  ┌───────────────────────────────────────────────────┐  │
 │  │              HTML5 Canvas (Full Screen)           │  │
-│  │  ┌──────────────────────┐                         │  │
-│  │  │  Module Selector UI  │                         │  │
-│  │  │  [Rust|C++|Go]       │                         │  │
-│  │  └──────────────────────┘                         │  │
+│  │  ┌──────────────────────┐  ┌──────────────────┐  │  │
+│  │  │  Module Selector UI  │  │ Viewport Info    │  │  │
+│  │  │[Rust|C++|Go|Moonbit  │  │ Real: -2.0..1.0  │  │  │
+│  │  │ |JavaScript]          │  │ Imag: -1.0..1.0  │  │  │
+│  │  │ Render time: 123ms   │  │                  │  │  │
+│  │  └──────────────────────┘  └──────────────────┘  │  │
 │  │  ┌──────────────────────────────────────────┐    │  │
 │  │  │     Rendered Mandelbrot Set              │    │  │
 │  │  │                                          │    │  │
@@ -32,29 +34,36 @@ The application follows a request-render cycle where user interactions update vi
 │  │  │  Event     │  │ Viewport │  │ Render  │     │    │
 │  │  │  Handler   │→ │ Manager  │→ │ Engine  │     │    │
 │  │  └────────────┘  └──────────┘  └────┬────┘     │    │
-│  │  ┌────────────┐                      │          │    │
-│  │  │  Module    │──────────────────────┘          │    │
-│  │  │  Selector  │                                 │    │
-│  │  └────────────┘                                 │    │
+│  │  ┌────────────┐  ┌──────────┐       │          │    │
+│  │  │  Module    │  │ Viewport │───────┘          │    │
+│  │  │  Selector  │  │ Info UI  │                  │    │
+│  │  └────────────┘  └──────────┘                  │    │
 │  └─────────────────────────┬────────────────────────┘   │
 │                            │                             │
-│  ┌─────────────────────────▼───────────────────┐        │
-│  │    WebAssembly Computation Modules          │        │
-│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  │        │
-│  │  │   Rust   │  │   C++    │  │    Go    │  │        │
-│  │  │  Module  │  │  Module  │  │  Module  │  │        │
-│  │  └──────────┘  └──────────┘  └──────────┘  │        │
-│  │  All expose same calculation interface      │        │
-│  └─────────────────────────────────────────────┘        │
+│  ┌─────────────────────────▼───────────────────────┐    │
+│  │    Computation Modules                          │    │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐      │    │
+│  │  │   Rust   │  │   C++    │  │    Go    │      │    │
+│  │  │  Module  │  │  Module  │  │  Module  │      │    │
+│  │  └──────────┘  └──────────┘  └──────────┘      │    │
+│  │  ┌──────────┐  ┌──────────┐                    │    │
+│  │  │ Moonbit  │  │JavaScript│                    │    │
+│  │  │  Module  │  │  Module  │                    │    │
+│  │  └──────────┘  └──────────┘                    │    │
+│  │  All expose same calculation interface         │    │
+│  └─────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### Component Interaction Flow
 
-1. **Initialization**: Page loads → Fetch and instantiate default Wasm module → Initialize canvas → Render module selector UI → Render initial view
-2. **User Interaction**: Mouse/wheel event → Event handler updates viewport → Trigger render
-3. **Module Selection**: User selects module → Load new Wasm module → Preserve viewport → Re-render with new module
-4. **Render Cycle**: Viewport parameters → Wasm calculation for each pixel → Color mapping → Canvas draw
+1. **Initialization**: Page loads → Fetch and instantiate default module → Initialize canvas with 1:1 aspect ratio → Render module selector UI → Render viewport info UI → Render initial view (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)
+2. **User Interaction**: Mouse/wheel event → Event handler updates viewport → Update viewport info display → Trigger debounced render (for zoom) or immediate render (for pan)
+3. **Module Selection**: User selects module (WASM or JavaScript) → Load new module → Preserve viewport → Re-render with new module → Display render time
+4. **Render Cycle**: Viewport parameters → Module calculation for each pixel → Measure calculation time → Color mapping → Canvas draw → Update render time display
+5. **Zoom Interaction**: Wheel event → Scale existing canvas image → Start debounce timer (1000ms) → If no additional zoom, trigger full re-render → Update viewport info
+6. **Resize**: Window resize → Adjust canvas dimensions → Anchor viewport at top-left corner → Maintain 1:1 aspect ratio → Expand/contract from right and bottom edges → Update viewport info → Trigger render
+7. **Error Handling**: Module load failure → Display modal error → User must dismiss modal → Fall back to previous working module
 
 ## Components and Interfaces
 
@@ -76,15 +85,19 @@ The application follows a request-render cycle where user interactions update vi
 **Interface**:
 ```javascript
 class EventHandler {
-  constructor(canvas, viewportManager)
+  constructor(canvas, viewportManager, renderEngine)
   
   // Mouse event handlers
   onMouseDown(event)
   onMouseMove(event)
   onMouseUp(event)
   
-  // Wheel event handler
+  // Wheel event handler with debouncing
   onWheel(event)
+  
+  // Debounce timer management
+  startZoomDebounce()
+  cancelZoomDebounce()
 }
 ```
 
@@ -93,10 +106,13 @@ class EventHandler {
 - Calculates delta movements for panning
 - Calculates zoom factor and focal point from wheel events
 - Delegates viewport updates to ViewportManager
+- Implements debounced rendering for zoom operations (1000ms delay)
+- Scales existing canvas image immediately on zoom for responsive feel
+- Triggers full re-render after debounce period expires
 
 #### 2.2 Viewport Manager
 
-**Responsibility**: Maintain and update the current view into the complex plane.
+**Responsibility**: Maintain and update the current view into the complex plane with 1:1 aspect ratio.
 
 **Interface**:
 ```javascript
@@ -112,6 +128,9 @@ class ViewportManager {
   // Update viewport for zooming
   zoom(zoomFactor, focalX, focalY, canvasWidth, canvasHeight)
   
+  // Update viewport for window resize (anchor at top-left, expand/contract from right/bottom)
+  resize(newCanvasWidth, newCanvasHeight)
+  
   // Convert canvas coordinates to complex plane coordinates
   canvasToComplex(canvasX, canvasY, canvasWidth, canvasHeight)
 }
@@ -121,50 +140,65 @@ class ViewportManager {
 - Stores current viewport boundaries in complex plane coordinates
 - Translates pixel deltas to complex plane deltas for panning
 - Scales viewport around focal point for zooming
-- Maintains aspect ratio during transformations
+- Maintains 1:1 aspect ratio between real and imaginary axes
+- Anchors viewport at top-left during resize operations
+- Expands or contracts viewport from right and bottom edges during resize
+- Ensures viewport dimensions match canvas aspect ratio
 
 #### 2.3 Render Engine
 
-**Responsibility**: Orchestrate the calculation and rendering of the Mandelbrot set.
+**Responsibility**: Orchestrate the calculation and rendering of the Mandelbrot set with performance timing.
 
 **Interface**:
 ```javascript
 class RenderEngine {
-  constructor(canvas, wasmModule, viewportManager)
+  constructor(canvas, calculationModule, viewportManager)
   
-  // Trigger a full render
-  render()
+  // Trigger a full render with timing
+  render() // Returns render time in milliseconds
+  
+  // Scale existing canvas image (for responsive zoom)
+  scaleCanvas(scaleFactor, focalX, focalY)
   
   // Map iteration count to color
   iterationToColor(iterations, maxIterations)
   
-  // Switch to a different Wasm module
-  setWasmModule(newModule)
+  // Switch to a different calculation module (WASM or JavaScript)
+  setCalculationModule(newModule)
+  
+  // Get last render time
+  getLastRenderTime() // Returns time in milliseconds
 }
 ```
 
 **Behavior**:
 - Iterates over each pixel in the canvas
 - Converts pixel coordinates to complex plane coordinates
-- Calls Wasm calculation function for each point
+- Calls calculation function (WASM or JavaScript) for each point
+- Measures calculation time from request to response
 - Maps iteration results to colors
 - Draws pixels to canvas using ImageData API
-- Supports hot-swapping Wasm modules while preserving viewport state
+- Supports hot-swapping between WASM and JavaScript modules while preserving viewport state
+- Provides immediate visual feedback by scaling existing canvas during zoom
+- Returns render time for display in UI
 
-### 3. WebAssembly Computation Modules
+### 3. Calculation Modules
 
-**Responsibility**: Perform high-performance Mandelbrot set calculations using different source languages.
+**Responsibility**: Perform Mandelbrot set calculations using different implementations for performance comparison.
 
-**Multiple Module Support**: The system supports three WebAssembly modules compiled from different source languages:
-- Rust implementation
-- C/C++ implementation  
-- Go implementation
+**Multiple Module Support**: The system supports multiple calculation modules:
+- **WebAssembly modules** compiled from different source languages:
+  - Rust implementation
+  - C/C++ implementation  
+  - Go implementation
+  - Moonbit implementation
+- **JavaScript implementation** for baseline comparison
 
 All modules expose the same interface for interoperability.
 
 **Interface** (exposed to JavaScript):
 ```javascript
-// Wasm exports (consistent across all modules)
+// Module exports (consistent across all implementations)
 {
   // Calculate iterations for a single point
   calculatePoint(real, imag, maxIterations, escapeRadius) // Returns iteration count
@@ -174,18 +208,19 @@ All modules expose the same interface for interoperability.
 }
 ```
 
-**Implementation** (Rust/C++/Go):
+**Implementation** (Rust/C++/Go/Moonbit/JavaScript):
 - Iterative calculation: z = z² + c
 - Early exit when |z| > escapeRadius
 - Return iteration count or maxIterations
 
 **Memory Management**:
-- Use shared memory between JavaScript and Wasm for buffer-based calculations
-- JavaScript allocates and passes memory pointers to Wasm
+- WASM: Use shared memory between JavaScript and Wasm for buffer-based calculations
+- WASM: JavaScript allocates and passes memory pointers to Wasm
+- JavaScript: Direct function calls without memory management overhead
 
 ### 4. Module Selector UI Component
 
-**Responsibility**: Provide user interface for selecting between available WebAssembly modules.
+**Responsibility**: Provide user interface for selecting between available calculation modules and displaying performance metrics.
 
 **Interface**:
 ```javascript
@@ -198,6 +233,12 @@ class ModuleSelector {
   // Change active module
   selectModule(moduleName)
   
+  // Update render time display
+  updateRenderTime(timeMs)
+  
+  // Show modal error dialog
+  showError(message)
+  
   // Render selector UI
   render()
 }
@@ -205,10 +246,35 @@ class ModuleSelector {
 
 **Behavior**:
 - Displays as an overlay control on the canvas
-- Shows available modules (Rust, C/C++, Go)
+- Shows available modules (Rust, C/C++, Go, Moonbit, JavaScript)
 - Highlights currently selected module
+- Displays last render time in milliseconds
 - Triggers module reload and re-render when selection changes
 - Preserves current viewport when switching modules
+- Shows modal error dialog when module fails to load (user must dismiss to clear)
+
+### 5. Viewport Info UI Component
+
+**Responsibility**: Display current viewport boundaries in the complex plane.
+
+**Interface**:
+```javascript
+class ViewportInfo {
+  constructor(viewportManager)
+  
+  // Update displayed viewport bounds
+  updateBounds()
+  
+  // Render viewport info UI
+  render()
+}
+```
+
+**Behavior**:
+- Displays as an overlay control on the canvas
+- Shows current min/max values for real and imaginary axes
+- Updates automatically after zoom, pan, or resize operations
+- Formats values with appropriate precision for readability
 
 ## Data Models
 
@@ -226,10 +292,17 @@ Represents the current view into the complex plane.
 ```
 
 **Initial Values**:
-- minReal: -2.5
+- minReal: -2.0
 - maxReal: 1.0
 - minImag: -1.0
 - maxImag: 1.0
+- Initial viewport should be centered in canvas with no cropping
+
+**Constraints**:
+- Must maintain 1:1 aspect ratio: (maxReal - minReal) / (maxImag - minImag) = canvasWidth / canvasHeight
+- Viewport must remain anchored at top-left during resize operations
+- Width changes add/remove from right edge, height changes add/remove from bottom edge
+- Viewport must not be cropped during transformations
 
 ### Calculation Parameters
 
@@ -325,18 +398,79 @@ Mapping from iteration counts to RGB colors.
 
 ### Property 11: Module switch preserves viewport
 
-*For any* viewport state and WebAssembly module change, the viewport boundaries should remain unchanged after switching modules.
+*For any* viewport state and calculation module change (WASM or JavaScript), the viewport boundaries should remain unchanged after switching modules.
 
 **Validates: Requirements 5.6**
 
+### Property 12: Viewport anchored at top-left on resize
+
+*For any* viewport and canvas resize operation, the top-left corner of the complex plane view should remain at the same position, with width changes affecting the right edge and height changes affecting the bottom edge.
+
+**Validates: Requirements 1.1.1**
+
+### Property 13: 1:1 aspect ratio maintained
+
+*For any* viewport state, the ratio of (maxReal - minReal) to (maxImag - minImag) should equal the ratio of canvas width to canvas height, maintaining a 1:1 aspect ratio between real and imaginary axes.
+
+**Validates: Requirements 1.6**
+
+### Property 14: Canvas scales on zoom
+
+*For any* zoom operation, the existing canvas image should be immediately scaled before the full re-render completes, providing responsive visual feedback.
+
+**Validates: Requirements 4.6**
+
+### Property 15: Debounced render after zoom
+
+*For any* sequence of zoom operations, if no additional zoom occurs within 1000ms of the last zoom, a full re-render should be triggered exactly once.
+
+**Validates: Requirements 4.5**
+
+### Property 16: Modal error on module load failure
+
+*For any* module load failure, a modal error dialog should be displayed and remain visible until the user explicitly dismisses it.
+
+**Validates: Requirements 5.3**
+
+### Property 17: Render time displayed
+
+*For any* completed render operation, the module selector overlay should display the calculation time in whole milliseconds.
+
+**Validates: Requirements 5.2.1**
+
+### Property 18: Accurate timing measurement
+
+*For any* WASM module calculation, the displayed time should accurately reflect the total time between making the request to the module and receiving the response.
+
+**Validates: Requirements 5.2.2**
+
+### Property 19: Viewport info updates on zoom
+
+*For any* zoom operation, the viewport info overlay should update to display the new min/max values for real and imaginary axes.
+
+**Validates: Requirements 7.1**
+
+### Property 20: Viewport info updates on pan
+
+*For any* pan operation, the viewport info overlay should update to display the new min/max values for real and imaginary axes.
+
+**Validates: Requirements 7.2**
+
+### Property 21: Viewport info updates on resize
+
+*For any* window resize operation, the viewport info overlay should update to display the new min/max values for real and imaginary axes.
+
+**Validates: Requirements 7.3**
+
 ## Error Handling
 
-### WebAssembly Loading Errors
+### Module Loading Errors
 
-**Scenario**: Wasm module fails to fetch or instantiate.
+**Scenario**: WASM or JavaScript module fails to fetch or instantiate.
 
 **Handling**:
-- Display user-friendly error message on the canvas
+- Display modal error dialog with user-friendly message
+- User must explicitly dismiss the modal to clear it from UI
 - Log detailed error to console for debugging
 - Prevent render attempts until module is loaded
 - If switching modules, fall back to previously working module
@@ -344,10 +478,10 @@ Mapping from iteration counts to RGB colors.
 **Implementation**:
 ```javascript
 try {
-  const wasmModule = await loadWasmModule(moduleName);
+  const module = await loadModule(moduleName);
 } catch (error) {
-  displayError(`Failed to load ${moduleName} calculation engine. Please try another module.`);
-  console.error("Wasm loading error:", error);
+  showModalError(`Failed to load ${moduleName} calculation engine. Please try another module.`);
+  console.error("Module loading error:", error);
   // Fall back to previous module if switching
   if (previousModule) {
     return previousModule;
@@ -394,22 +528,31 @@ Unit tests will verify specific examples and edge cases:
 
 **Canvas Initialization**:
 - Test that canvas is created with correct initial dimensions
-- Test that initial viewport matches specification (-2.5 to 1.0 real, -1.0 to 1.0 imaginary)
-- Test that default Wasm module is loaded before first render
-- Test that module selector UI is present on page load
+- Test that initial viewport matches specification (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)
+- Test that initial viewport is centered in canvas with no cropping
+- Test that canvas maintains 1:1 aspect ratio on initialization
+- Test that default calculation module is loaded before first render
+- Test that module selector UI is present on page load with all modules (Rust, C++, Go, Moonbit, JavaScript)
+- Test that viewport info UI is present on page load
 - Test that default module is selected in the UI
 
 **Event Handling**:
 - Test mousedown initiates pan mode
-- Test mouseup completes pan and triggers render
-- Test wheel event triggers zoom
-- Test that render is called after viewport changes
+- Test mouseup completes pan and triggers immediate render
+- Test wheel event triggers zoom with canvas scaling
+- Test that debounce timer starts after zoom
+- Test that additional zooms reset the debounce timer
+- Test that render is called after debounce period expires
+- Test that viewport info updates after pan, zoom, and resize
 
 **Module Selection**:
-- Test that all three modules (Rust, C/C++, Go) are available in selector
+- Test that all modules (Rust, C/C++, Go, Moonbit, JavaScript) are available in selector
 - Test that selecting a module triggers module load
-- Test that module switch triggers re-render
-- Test that failed module load displays error and falls back
+- Test that module switch triggers re-render with timing
+- Test that render time is displayed after each render
+- Test that failed module load displays modal error
+- Test that modal error requires user dismissal
+- Test that failed load falls back to previous module
 
 **Coordinate Conversion**:
 - Test canvas-to-complex coordinate conversion with known values
@@ -421,8 +564,11 @@ Unit tests will verify specific examples and edge cases:
 - Test that mid-range iterations map to appropriate palette colors
 
 **Error Handling**:
-- Test Wasm load failure displays error message
+- Test module load failure displays modal error message
+- Test modal error persists until user dismisses
 - Test invalid viewport state is handled gracefully
+- Test viewport anchoring at top-left during resize
+- Test 1:1 aspect ratio is maintained during all operations
 
 ### Property-Based Testing
 
@@ -477,16 +623,64 @@ Property-based tests will verify universal properties across many randomly gener
 
 11. **Module Switch Viewport Preservation** (Property 11)
     - Generate random viewport states
-    - Switch between random modules
+    - Switch between random modules (WASM and JavaScript)
     - Verify viewport boundaries unchanged
+
+12. **Viewport Anchored at Top-Left on Resize** (Property 12)
+    - Generate random viewports and canvas dimensions
+    - Perform resize operation
+    - Verify top-left corner position remains constant
+    - Verify width changes affect right edge only
+    - Verify height changes affect bottom edge only
+
+13. **1:1 Aspect Ratio Maintained** (Property 13)
+    - Generate random viewport states and canvas dimensions
+    - Verify aspect ratio equals canvas aspect ratio
+
+14. **Canvas Scales on Zoom** (Property 14)
+    - Generate random zoom operations
+    - Verify canvas is scaled immediately before re-render
+
+15. **Debounced Render After Zoom** (Property 15)
+    - Generate sequences of zoom operations
+    - Verify render triggered after 1000ms of no additional zooms
+    - Verify only one render occurs per debounce period
+
+16. **Modal Error on Module Load Failure** (Property 16)
+    - Simulate module load failures
+    - Verify modal error is displayed
+    - Verify modal persists until dismissed
+
+17. **Render Time Displayed** (Property 17)
+    - Generate random render operations
+    - Verify time is displayed in overlay
+
+18. **Accurate Timing Measurement** (Property 18)
+    - Generate random calculations
+    - Verify displayed time matches actual calculation time
+
+19. **Viewport Info Updates on Zoom** (Property 19)
+    - Generate random zoom operations
+    - Verify viewport info displays correct bounds
+
+20. **Viewport Info Updates on Pan** (Property 20)
+    - Generate random pan operations
+    - Verify viewport info displays correct bounds
+
+21. **Viewport Info Updates on Resize** (Property 21)
+    - Generate random resize operations
+    - Verify viewport info displays correct bounds
 
 ### Integration Testing
 
-- Test complete render cycle: user interaction → viewport update → calculation → rendering
+- Test complete render cycle: user interaction → viewport update → calculation → rendering → timing display
 - Test pan and zoom in sequence to verify state consistency
-- Test rapid interactions to ensure no race conditions
+- Test rapid zoom interactions to verify debouncing works correctly
 - Test module switching during active rendering
-- Test that all three Wasm modules produce equivalent results for the same input
+- Test that all calculation modules (WASM and JavaScript) produce equivalent results for the same input
+- Test viewport info updates correctly across all interaction types
+- Test resize operations maintain viewport anchoring at top-left and aspect ratio
+- Test modal error flow from display to dismissal
 
 ### Performance Testing
 
@@ -499,10 +693,12 @@ While not part of automated correctness testing, performance should be manually 
 
 ### Technology Choices
 
-**WebAssembly Source Languages**: Multiple implementations for performance comparison
+**Calculation Module Languages**: Multiple implementations for performance comparison
 - **Rust**: Memory safety and excellent Wasm tooling (wasm-pack, wasm-bindgen)
 - **C/C++**: Mature compilers and optimization (Emscripten)
 - **Go**: Simplicity and built-in Wasm support (TinyGo for smaller binaries)
+- **Moonbit**: Modern language with WebAssembly-first design
+- **JavaScript**: Baseline implementation for performance comparison (no WASM overhead)
 
 **JavaScript Framework**: Vanilla JavaScript (no framework needed)
 - Simple application doesn't require React/Vue overhead
@@ -512,7 +708,9 @@ While not part of automated correctness testing, performance should be manually 
 - Rust: wasm-pack for building Wasm modules
 - C/C++: Emscripten for compilation to Wasm
 - Go: TinyGo for optimized Wasm output
-- JavaScript: Simple bundler (Vite, Parcel) or no bundler for development
+- Moonbit: Moonbit compiler for Wasm generation
+- JavaScript: No build step required (native implementation)
+- Bundler: Vite for development and production builds
 - Static file server for testing
 
 ### Performance Optimizations
@@ -524,6 +722,9 @@ While not part of automated correctness testing, performance should be manually 
 
 **Rendering Optimizations**:
 - Use ImageData API for batch pixel updates
+- Scale existing canvas image immediately on zoom for responsive feel
+- Debounce full re-renders during zoom (1000ms delay)
+- Measure and display calculation time
 - Consider Web Workers for parallel calculation (future enhancement)
 - Implement progressive rendering for deep zooms (future enhancement)
 
@@ -556,8 +757,10 @@ mandelbrot-visualizer/
 │   ├── viewportManager.js # Viewport state management
 │   ├── renderEngine.js    # Rendering orchestration
 │   ├── colorPalette.js    # Color mapping functions
-│   ├── wasmLoader.js      # Wasm module loading
-│   └── moduleSelector.js  # Module selection UI component
+│   ├── wasmLoader.js      # WASM module loading
+│   ├── jsCalculator.js    # JavaScript calculation implementation
+│   ├── moduleSelector.js  # Module selection UI with timing display
+│   └── viewportInfo.js    # Viewport info overlay UI
 ├── wasm/
 │   ├── rust/
 │   │   ├── src/
@@ -567,9 +770,12 @@ mandelbrot-visualizer/
 │   ├── cpp/
 │   │   ├── mandelbrot.cpp # C++ source for Wasm module
 │   │   └── build/         # Built C++ Wasm output
-│   └── go/
-│       ├── mandelbrot.go  # Go source for Wasm module
-│       └── build/         # Built Go Wasm output
+│   ├── go/
+│   │   ├── mandelbrot.go  # Go source for Wasm module
+│   │   └── build/         # Built Go Wasm output
+│   └── moonbit/
+│       ├── mandelbrot.mbt # Moonbit source for Wasm module
+│       └── build/         # Built Moonbit Wasm output
 └── tests/
     ├── unit/              # Unit tests
     └── property/          # Property-based tests
