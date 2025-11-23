@@ -28,7 +28,7 @@ describe('RenderEngine', () => {
     
     // Create viewport manager with default bounds
     viewportManager = new ViewportManager({
-      minReal: -2.5,
+      minReal: -2.0,
       maxReal: 1.0,
       minImag: -1.0,
       maxImag: 1.0

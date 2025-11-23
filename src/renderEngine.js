@@ -62,6 +62,59 @@ export class RenderEngine {
   }
 
   /**
+   * Scale the existing canvas image immediately for responsive zoom feedback
+   * Uses imageSmoothingEnabled for better visual quality during scaling
+   * @param {number} scaleFactor - Zoom scale factor (>1 for zoom in, <1 for zoom out)
+   * @param {number} focalX - X coordinate of zoom focal point in canvas pixels
+   * @param {number} focalY - Y coordinate of zoom focal point in canvas pixels
+   */
+  scaleCanvas(scaleFactor, focalX, focalY) {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    
+    // Capture the current canvas content as ImageData
+    const imageData = this.ctx.getImageData(0, 0, width, height);
+    
+    // Create a temporary canvas using the same canvas constructor as the main canvas
+    // This ensures compatibility in both browser and Node.js environments
+    const tempCanvas = this.canvas.constructor === HTMLCanvasElement || 
+                       typeof this.canvas.constructor === 'undefined'
+      ? (typeof document !== 'undefined' ? document.createElement('canvas') : this.canvas.cloneNode())
+      : new this.canvas.constructor(width, height);
+    
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d');
+    
+    // Put the captured image data onto the temporary canvas
+    tempCtx.putImageData(imageData, 0, 0);
+    
+    // Clear the main canvas
+    this.ctx.clearRect(0, 0, width, height);
+    
+    // Calculate the scaled dimensions
+    const scaledWidth = width * scaleFactor;
+    const scaledHeight = height * scaleFactor;
+    
+    // Calculate the offset to keep the focal point fixed
+    // The focal point should remain at the same position after scaling
+    const offsetX = focalX - (focalX * scaleFactor);
+    const offsetY = focalY - (focalY * scaleFactor);
+    
+    // Enable image smoothing for better visual quality
+    this.ctx.imageSmoothingEnabled = true;
+    this.ctx.imageSmoothingQuality = 'high';
+    
+    // Draw the scaled image from the temporary canvas back to the main canvas
+    this.ctx.drawImage(
+      tempCanvas,
+      0, 0, width, height,           // Source rectangle (entire temp canvas)
+      offsetX, offsetY,               // Destination position
+      scaledWidth, scaledHeight       // Destination size (scaled)
+    );
+  }
+
+  /**
    * Render the Mandelbrot set to the canvas
    * Iterates over all pixels, calculates iteration counts, maps to colors, and draws
    * @returns {number} Render time in milliseconds

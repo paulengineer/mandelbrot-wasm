@@ -7,7 +7,7 @@ describe('ViewportManager', () => {
   beforeEach(() => {
     // Initialize with default bounds
     viewport = new ViewportManager({
-      minReal: -2.5,
+      minReal: -2.0,
       maxReal: 1.0,
       minImag: -1.0,
       maxImag: 1.0
@@ -17,7 +17,7 @@ describe('ViewportManager', () => {
   describe('initialization', () => {
     it('should initialize with correct default bounds', () => {
       const bounds = viewport.getBounds();
-      expect(bounds.minReal).toBe(-2.5);
+      expect(bounds.minReal).toBe(-2.0);
       expect(bounds.maxReal).toBe(1.0);
       expect(bounds.minImag).toBe(-1.0);
       expect(bounds.maxImag).toBe(1.0);
@@ -58,7 +58,7 @@ describe('ViewportManager', () => {
   describe('canvasToComplex', () => {
     it('should convert top-left corner correctly', () => {
       const result = viewport.canvasToComplex(0, 0, 800, 600);
-      expect(result.real).toBeCloseTo(-2.5);
+      expect(result.real).toBeCloseTo(-2.0);
       expect(result.imag).toBeCloseTo(1.0);
     });
 
@@ -70,7 +70,7 @@ describe('ViewportManager', () => {
 
     it('should convert center correctly', () => {
       const result = viewport.canvasToComplex(400, 300, 800, 600);
-      expect(result.real).toBeCloseTo(-0.75); // midpoint of -2.5 and 1.0
+      expect(result.real).toBeCloseTo(-0.5); // midpoint of -2.0 and 1.0
       expect(result.imag).toBeCloseTo(0.0);   // midpoint of -1.0 and 1.0
     });
 
@@ -107,18 +107,18 @@ describe('ViewportManager', () => {
       const canvasWidth = 1000;
       const canvasHeight = 1000;
       
-      // At (250, 250) with viewport (-2.5 to 1.0, -1.0 to 1.0)
-      // Real: -2.5 + (250/1000) * 3.5 = -2.5 + 0.875 = -1.625
+      // At (250, 250) with viewport (-2.0 to 1.0, -1.0 to 1.0)
+      // Real: -2.0 + (250/1000) * 3.0 = -2.0 + 0.75 = -1.25
       // Imag: 1.0 - (250/1000) * 2.0 = 1.0 - 0.5 = 0.5
       const result1 = viewport.canvasToComplex(250, 250, canvasWidth, canvasHeight);
-      expect(result1.real).toBeCloseTo(-1.625);
+      expect(result1.real).toBeCloseTo(-1.25);
       expect(result1.imag).toBeCloseTo(0.5);
       
       // At (750, 750)
-      // Real: -2.5 + (750/1000) * 3.5 = -2.5 + 2.625 = 0.125
+      // Real: -2.0 + (750/1000) * 3.0 = -2.0 + 2.25 = 0.25
       // Imag: 1.0 - (750/1000) * 2.0 = 1.0 - 1.5 = -0.5
       const result2 = viewport.canvasToComplex(750, 750, canvasWidth, canvasHeight);
-      expect(result2.real).toBeCloseTo(0.125);
+      expect(result2.real).toBeCloseTo(0.25);
       expect(result2.imag).toBeCloseTo(-0.5);
     });
 
@@ -128,7 +128,7 @@ describe('ViewportManager', () => {
       
       // Test all four corners
       const topLeft = viewport.canvasToComplex(0, 0, canvasWidth, canvasHeight);
-      expect(topLeft.real).toBeCloseTo(-2.5);
+      expect(topLeft.real).toBeCloseTo(-2.0);
       expect(topLeft.imag).toBeCloseTo(1.0);
       
       const topRight = viewport.canvasToComplex(canvasWidth, 0, canvasWidth, canvasHeight);
@@ -136,7 +136,7 @@ describe('ViewportManager', () => {
       expect(topRight.imag).toBeCloseTo(1.0);
       
       const bottomLeft = viewport.canvasToComplex(0, canvasHeight, canvasWidth, canvasHeight);
-      expect(bottomLeft.real).toBeCloseTo(-2.5);
+      expect(bottomLeft.real).toBeCloseTo(-2.0);
       expect(bottomLeft.imag).toBeCloseTo(-1.0);
       
       const bottomRight = viewport.canvasToComplex(canvasWidth, canvasHeight, canvasWidth, canvasHeight);
@@ -167,7 +167,7 @@ describe('ViewportManager', () => {
       
       // Moving right means we're looking at a region further left in the complex plane
       // So both minReal and maxReal should decrease
-      expect(bounds.minReal).toBeLessThan(-2.5);
+      expect(bounds.minReal).toBeLessThan(-2.0);
       expect(bounds.maxReal).toBeLessThan(1.0);
       
       // Imaginary bounds should remain unchanged
@@ -176,7 +176,7 @@ describe('ViewportManager', () => {
       
       // The range should remain the same
       const newRealRange = bounds.maxReal - bounds.minReal;
-      expect(newRealRange).toBeCloseTo(3.5); // original range: 1.0 - (-2.5) = 3.5
+      expect(newRealRange).toBeCloseTo(3.0); // original range: 1.0 - (-2.0) = 3.0
     });
 
     it('should translate viewport left when deltaX is negative', () => {
@@ -190,7 +190,7 @@ describe('ViewportManager', () => {
       
       // Moving left means we're looking at a region further right in the complex plane
       // So both minReal and maxReal should increase
-      expect(bounds.minReal).toBeGreaterThan(-2.5);
+      expect(bounds.minReal).toBeGreaterThan(-2.0);
       expect(bounds.maxReal).toBeGreaterThan(1.0);
       
       // Imaginary bounds should remain unchanged
@@ -208,7 +208,7 @@ describe('ViewportManager', () => {
       const bounds = viewport.getBounds();
       
       // Real bounds should remain unchanged
-      expect(bounds.minReal).toBeCloseTo(-2.5);
+      expect(bounds.minReal).toBeCloseTo(-2.0);
       expect(bounds.maxReal).toBeCloseTo(1.0);
       
       // Moving down means we're looking at a region higher in the complex plane
@@ -231,7 +231,7 @@ describe('ViewportManager', () => {
       const bounds = viewport.getBounds();
       
       // Real bounds should remain unchanged
-      expect(bounds.minReal).toBeCloseTo(-2.5);
+      expect(bounds.minReal).toBeCloseTo(-2.0);
       expect(bounds.maxReal).toBeCloseTo(1.0);
       
       // Moving up means we're looking at a region lower in the complex plane
@@ -258,7 +258,7 @@ describe('ViewportManager', () => {
       // Ranges should remain constant
       const realRange = bounds.maxReal - bounds.minReal;
       const imagRange = bounds.maxImag - bounds.minImag;
-      expect(realRange).toBeCloseTo(3.5);
+      expect(realRange).toBeCloseTo(3.0);
       expect(imagRange).toBeCloseTo(2.0);
     });
 
@@ -268,14 +268,14 @@ describe('ViewportManager', () => {
       
       // Pan 200 pixels should move twice as far as 100 pixels
       const viewport1 = new ViewportManager({
-        minReal: -2.5,
+        minReal: -2.0,
         maxReal: 1.0,
         minImag: -1.0,
         maxImag: 1.0
       });
       
       const viewport2 = new ViewportManager({
-        minReal: -2.5,
+        minReal: -2.0,
         maxReal: 1.0,
         minImag: -1.0,
         maxImag: 1.0
@@ -287,8 +287,8 @@ describe('ViewportManager', () => {
       const bounds1 = viewport1.getBounds();
       const bounds2 = viewport2.getBounds();
       
-      const delta1 = bounds1.minReal - (-2.5);
-      const delta2 = bounds2.minReal - (-2.5);
+      const delta1 = bounds1.minReal - (-2.0);
+      const delta2 = bounds2.minReal - (-2.0);
       
       expect(delta2).toBeCloseTo(delta1 * 2);
     });

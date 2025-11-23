@@ -22,7 +22,7 @@ describe('EventHandler - Zoom', () => {
     
     // Create viewport manager
     viewportManager = new ViewportManager({
-      minReal: -2.5,
+      minReal: -2.0,
       maxReal: 1.0,
       minImag: -1.0,
       maxImag: 1.0
@@ -31,6 +31,7 @@ describe('EventHandler - Zoom', () => {
     // Create mock render engine
     mockRenderEngine = {
       render: vi.fn(),
+      scaleCanvas: vi.fn(),
       canvas: canvas
     };
     
@@ -62,7 +63,7 @@ describe('EventHandler - Zoom', () => {
       );
     });
 
-    it('should trigger render after zoom', () => {
+    it('should trigger debounced render after zoom', async () => {
       mockRenderEngine.render.mockClear();
       
       const wheelEvent = new WheelEvent('wheel', {
@@ -73,6 +74,13 @@ describe('EventHandler - Zoom', () => {
       
       eventHandler.onWheel(wheelEvent);
       
+      // Render should not be called immediately (debounced)
+      expect(mockRenderEngine.render).not.toHaveBeenCalled();
+      
+      // Wait for debounce delay (1000ms + buffer)
+      await new Promise(resolve => setTimeout(resolve, 1100));
+      
+      // Now render should have been called
       expect(mockRenderEngine.render).toHaveBeenCalled();
     });
 

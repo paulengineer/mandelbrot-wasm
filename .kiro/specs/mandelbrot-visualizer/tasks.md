@@ -330,7 +330,7 @@
   - **Property 21: Viewport info updates on resize**
   - **Validates: Requirements 7.3**
 
-- [ ] 30. Update initial viewport values
+- [x] 30. Update initial viewport values
   - Change initial minReal from -2.5 to -2.0
   - Keep other initial values (maxReal: 1.0, minImag: -1.0, maxImag: 1.0)
   - Ensure initial viewport is centered in canvas with no cropping
@@ -346,18 +346,18 @@
   - **Property 13: Aspect ratio matches canvas**
   - **Validates: Requirements 1.6**
 
-- [ ] 32. Update resize behavior to maintain scale and anchor top-left position
+- [x] 32. Update resize behavior to maintain scale and anchor top-left position
   - Modify ViewportManager.resize() to maintain scale unchanged during resize
   - Anchor top-left complex plane position at top-left of canvas
   - Adjust complex plane bounds to match new canvas dimensions while preserving scale
   - Ensure aspect ratio continues to match canvas dimensions
   - _Requirements: 1.2_
 
-- [ ] 32.1 Write property test for scale preservation and top-left anchored resize
+- [x] 32.1 Write property test for scale preservation and top-left anchored resize
   - **Property 12: Viewport scale and top-left position preserved on resize**
   - **Validates: Requirements 1.2**
 
-- [ ] 33. Implement debounced rendering for zoom
+- [x] 33. Implement debounced rendering for zoom
   - Add debounce timer to EventHandler (1000ms delay)
   - Start timer on wheel event
   - Reset timer if additional zoom occurs
@@ -365,22 +365,22 @@
   - Cancel timer if other interactions occur
   - _Requirements: 4.5_
 
-- [ ] 33.1 Write property test for debounced render
+- [x] 33.1 Write property test for debounced render
   - **Property 15: Debounced render after zoom**
   - **Validates: Requirements 4.5**
 
-- [ ] 34. Implement immediate canvas scaling on zoom
+- [x] 34. Implement immediate canvas scaling on zoom
   - Add scaleCanvas() method to RenderEngine
   - Scale existing canvas image immediately on zoom
   - Use canvas transform or drawImage for scaling
   - Provide responsive visual feedback before full render
   - _Requirements: 4.6_
 
-- [ ] 34.1 Write property test for canvas scaling
+- [x] 34.1 Write property test for canvas scaling
   - **Property 14: Canvas scales on zoom**
   - **Validates: Requirements 4.6**
 
-- [ ] 35. Update main.js to initialize new components
+- [x] 35. Update main.js to initialize new components
   - Initialize ViewportInfo component
   - Wire up ViewportInfo to viewport changes
   - Update module loader to include Moonbit and JavaScript
@@ -388,7 +388,7 @@
   - Set up modal error handling
   - _Requirements: 1.5, 5.1.1, 5.1.2, 7.1, 7.2, 7.3_
 
-- [ ] 36. Update integration tests for new features
+- [x] 36. Update integration tests for new features
   - Test all 5 calculation modules (Rust, C++, Go, Moonbit, JavaScript)
   - Test render time display updates correctly
   - Test modal error dialog flow
@@ -399,5 +399,5 @@
   - Test immediate canvas scaling on zoom
   - _Requirements: All_
 
-- [ ] 37. Final Checkpoint - Ensure all new tests pass
+- [x] 37. Final Checkpoint - Ensure all new tests pass
   - Ensure all tests pass, ask the user if questions arise.

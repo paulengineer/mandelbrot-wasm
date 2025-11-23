@@ -470,24 +470,24 @@ describe('ViewportManager - Property Tests', () => {
           // Verify that width changes affect the right edge only
           // If canvas width increased, maxReal should increase
           // If canvas width decreased, maxReal should decrease
-          const widthRatio = newCanvasWidth / initialCanvasWidth;
           const beforeRealRange = beforeBounds.maxReal - beforeBounds.minReal;
           const afterRealRange = afterBounds.maxReal - afterBounds.minReal;
           
-          // The real range should scale proportionally with canvas width
-          // (maintaining aspect ratio with the new canvas dimensions)
-          const expectedRealRange = beforeRealRange * (newCanvasWidth / initialCanvasWidth) * (initialCanvasHeight / newCanvasHeight);
+          // Calculate the X scale before resize
+          const beforeScaleX = beforeRealRange / initialCanvasWidth;
+          
+          // The real range should maintain X scale
+          const expectedRealRange = beforeScaleX * newCanvasWidth;
           expect(afterRealRange).toBeCloseTo(expectedRealRange, 6);
           
           // Verify that height changes affect the bottom edge only
           // If canvas height increased, minImag should decrease (bottom edge moves down)
           // If canvas height decreased, minImag should increase (bottom edge moves up)
-          const heightRatio = newCanvasHeight / initialCanvasHeight;
           const beforeImagRange = beforeBounds.maxImag - beforeBounds.minImag;
           const afterImagRange = afterBounds.maxImag - afterBounds.minImag;
           
-          // The imaginary range should scale proportionally with canvas height
-          const expectedImagRange = beforeImagRange * (newCanvasHeight / initialCanvasHeight) * (initialCanvasWidth / newCanvasWidth);
+          // The imaginary range should be calculated to maintain aspect ratio
+          const expectedImagRange = expectedRealRange * (newCanvasHeight / newCanvasWidth);
           expect(afterImagRange).toBeCloseTo(expectedImagRange, 6);
           
           // Verify aspect ratio is maintained

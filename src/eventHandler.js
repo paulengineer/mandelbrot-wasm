@@ -26,6 +26,10 @@ export class EventHandler {
     this.lastMouseX = 0;
     this.lastMouseY = 0;
     
+    // Zoom debounce timer
+    this.zoomDebounceTimer = null;
+    this.zoomDebounceDelay = 1000; // 1000ms delay
+    
     // Bind event handlers to maintain 'this' context
     this.handleMouseDown = this.onMouseDown.bind(this);
     this.handleMouseMove = this.onMouseMove.bind(this);
@@ -71,6 +75,9 @@ export class EventHandler {
     if (event.button !== 0) {
       return;
     }
+    
+    // Cancel any pending zoom debounce timer
+    this.cancelZoomDebounce();
     
     // Initiate pan mode
     this.isPanning = true;
@@ -173,6 +180,9 @@ export class EventHandler {
     const focalX = event.offsetX;
     const focalY = event.offsetY;
     
+    // Scale the existing canvas image immediately for responsive feedback
+    this.renderEngine.scaleCanvas(zoomFactor, focalX, focalY);
+    
     // Pass zoom parameters to ViewportManager
     this.viewportManager.zoom(
       zoomFactor,
@@ -187,11 +197,9 @@ export class EventHandler {
       this.viewportInfo.updateBounds();
     }
     
-    // Trigger render after zoom completes
-    const renderTime = this.renderEngine.render();
-    if (this.onRenderComplete) {
-      this.onRenderComplete(renderTime);
-    }
+    // Start or reset debounce timer for full re-render
+    // This ensures we only render once after zoom operations complete
+    this.startZoomDebounce();
   }
 
   /**
@@ -200,5 +208,35 @@ export class EventHandler {
    */
   isPanningActive() {
     return this.isPanning;
+  }
+
+  /**
+   * Start or reset the zoom debounce timer
+   * Triggers a full re-render after the debounce delay expires
+   */
+  startZoomDebounce() {
+    // Cancel any existing timer
+    this.cancelZoomDebounce();
+    
+    // Start new timer
+    this.zoomDebounceTimer = setTimeout(() => {
+      // Trigger full re-render when timer expires
+      const renderTime = this.renderEngine.render();
+      if (this.onRenderComplete) {
+        this.onRenderComplete(renderTime);
+      }
+      this.zoomDebounceTimer = null;
+    }, this.zoomDebounceDelay);
+  }
+
+  /**
+   * Cancel the zoom debounce timer
+   * Call this when other interactions occur that should cancel pending zoom renders
+   */
+  cancelZoomDebounce() {
+    if (this.zoomDebounceTimer !== null) {
+      clearTimeout(this.zoomDebounceTimer);
+      this.zoomDebounceTimer = null;
+    }
   }
 }

@@ -104,7 +104,7 @@ function resizeCanvas() {
 function initializeViewport() {
   // Initial viewport showing the classic Mandelbrot set view
   const initialBounds = {
-    minReal: -2.5,
+    minReal: -2.0,
     maxReal: 1.0,
     minImag: -1.0,
     maxImag: 1.0
