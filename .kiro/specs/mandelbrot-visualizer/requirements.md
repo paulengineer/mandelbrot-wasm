@@ -23,11 +23,11 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 #### Acceptance Criteria
 
 1. WHEN the page loads, THE Canvas SHALL fill the entire browser viewport
-2. WHEN the browser window is resized, THE Canvas SHALL maintain current Complex Plane view anchored at top left.
-3. WHEN the Canvas is rendered, THE Mandelbrot Set SHALL be displayed with appropriate initial coordinates showing the classic view
-4. WHEN the Canvas displays the fractal, THE System SHALL use color gradients to represent iteration counts for visual clarity
-5. WHEN the initial render occurs, THE System SHALL use initial values of -2.0 to 1.0 on the real axis and -1.0 to 1.0 on the imaginary axis, centered in the canvas and view scale so that no cropping occurs.
-6. THE Canvas SHALL maintain 1:1 aspect ratio between the real and imaginary axis
+2. WHEN the browser window is resized, THE Complex Plane bounds SHALL adjust in line with the Canvas dimensions, with scale unchanged and top left Complex Plane position anchored at top left of canvas.
+3. WHEN the Canvas is rendered, THE Mandelbrot Set SHALL be displayed
+4. WHEN the Canvas is rendered, THE System SHALL use color gradients to represent iteration counts for visual clarity
+5. WHEN the initial Canvas render occurs, THE System SHALL use initial values of -2.0 to 1.0 on the real axis and -1.0 to 1.0 on the imaginary axis, centered in the canvas and scaled to fit.
+6. THE Complex Plane bounds SHALL maintain same aspect ratio as the Canvas dimensions
 
 ### Requirement 2
 
