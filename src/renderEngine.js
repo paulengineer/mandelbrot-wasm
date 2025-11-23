@@ -26,7 +26,7 @@ export class RenderEngine {
    */
   constructor(canvas, wasmModule, viewportManager, options = {}) {
     this.canvas = canvas;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d', { willReadFrequently: true });
     this.wasmModule = wasmModule;
     this.viewportManager = viewportManager;
     
@@ -111,6 +111,42 @@ export class RenderEngine {
       0, 0, width, height,           // Source rectangle (entire temp canvas)
       offsetX, offsetY,               // Destination position
       scaledWidth, scaledHeight       // Destination size (scaled)
+    );
+  }
+
+  /**
+   * Translate the existing canvas image immediately for responsive pan feedback
+   * @param {number} deltaX - X translate in canvas pixels
+   * @param {number} deltaY - Y translate in canvas pixels
+   */
+  panCanvas(deltaX, deltaY) {
+    const width = this.canvas.width;
+    const height = this.canvas.height;
+    
+    // Capture the current canvas content as ImageData
+    const imageData = this.ctx.getImageData(0, 0, width, height);
+    
+    // Create a temporary canvas using the same canvas constructor as the main canvas
+    // This ensures compatibility in both browser and Node.js environments
+    const tempCanvas = this.canvas.constructor === HTMLCanvasElement || 
+                       typeof this.canvas.constructor === 'undefined'
+      ? (typeof document !== 'undefined' ? document.createElement('canvas') : this.canvas.cloneNode())
+      : new this.canvas.constructor(width, height);
+    
+    tempCanvas.width = width;
+    tempCanvas.height = height;
+    const tempCtx = tempCanvas.getContext('2d', { willReadFrequently: true });
+    
+    // Put the captured image data onto the temporary canvas
+    tempCtx.putImageData(imageData, 0, 0);
+    
+    // Clear the main canvas
+    this.ctx.clearRect(0, 0, width, height);
+    
+    // Draw the image from the temporary canvas back to the main canvas in new position
+    this.ctx.drawImage(
+      tempCanvas,
+      deltaX, deltaY     // Translated top left coordinates
     );
   }
 

@@ -76,9 +76,6 @@ export class EventHandler {
       return;
     }
     
-    // Cancel any pending zoom debounce timer
-    this.cancelZoomDebounce();
-    
     // Initiate pan mode
     this.isPanning = true;
     
@@ -104,6 +101,11 @@ export class EventHandler {
     const deltaX = event.clientX - this.lastMouseX;
     const deltaY = event.clientY - this.lastMouseY;
     
+    if (deltaX===0 && deltaY===0) return;
+        
+    // Scale the existing canvas image immediately for responsive feedback
+    this.renderEngine.panCanvas(deltaX, deltaY);
+
     // Update viewport using ViewportManager
     this.viewportManager.pan(
       deltaX,
@@ -121,14 +123,12 @@ export class EventHandler {
     this.lastMouseX = event.clientX;
     this.lastMouseY = event.clientY;
     
-    // Trigger immediate re-render for smooth panning feedback
-    const renderTime = this.renderEngine.render();
-    if (this.onRenderComplete) {
-      this.onRenderComplete(renderTime);
-    }
-    
     // Prevent default behavior
     event.preventDefault();
+
+    // Start or reset debounce timer for full re-render
+    // This ensures we only render once after pan operations complete
+    this.startZoomDebounce();
   }
 
   /**
