@@ -31,7 +31,9 @@ zReal = zRealTemp
 
 ### JavaScript Interface
 
-The function is exposed to JavaScript via the `syscall/js` package:
+Two functions are exposed to JavaScript via the `syscall/js` package:
+
+#### Single Point Calculation
 
 ```javascript
 calculatePoint(real, imag, maxIterations, escapeRadius)
@@ -46,14 +48,31 @@ calculatePoint(real, imag, maxIterations, escapeRadius)
 **Returns:**
 - (uint32): Iteration count at escape, or maxIterations if no escape
 
+#### Batch Calculation
+
+```javascript
+calculateMandelbrotSet(realCoords, imagCoords, maxIterations, escapeRadius)
+```
+
+**Parameters:**
+- `realCoords` (array of float64): Array of real components for all points
+- `imagCoords` (array of float64): Array of imaginary components for all points
+- `maxIterations` (uint32): Maximum iterations before considering point in set
+- `escapeRadius` (float64): Threshold for escape detection (typically 2.0)
+
+**Returns:**
+- (array of uint32): Array of iteration counts, one for each input coordinate pair
+
 ## Requirements Validation
 
 This implementation satisfies the following requirements:
 
-- **Requirement 2.1**: Executes computation using WebAssembly
+- **Requirement 2.1**: Executes computation using WebAssembly with batch processing
 - **Requirement 2.2**: Iterates up to maximum iteration count
 - **Requirement 2.3**: Returns iteration count when point escapes
 - **Requirement 2.4**: Returns maxIterations for non-escaping points
+- **Requirement 2.5**: Passes memory buffers efficiently between JavaScript and WebAssembly
+- **Requirement 2.6**: Returns results as an array from batch calculation
 - **Requirement 5.1**: Compiled from Go source to Wasm format
 
 ## Build Information

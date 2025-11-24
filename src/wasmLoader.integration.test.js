@@ -131,5 +131,66 @@ describe('wasmLoader integration', () => {
         }
       }
     }, 30000);
+
+    it('should verify all loaded modules expose calculateMandelbrotSet batch API', async () => {
+      // Requirements: 2.1, 5.2, 5.4 - All modules should expose batch API
+      const modulesToTest = ['rust', 'javascript']; // Test fast-loading modules
+      
+      for (const moduleName of modulesToTest) {
+        try {
+          const module = await loadWasmModule(moduleName);
+          
+          // Verify batch API function exists
+          expect(module.calculateMandelbrotSet).toBeDefined();
+          expect(typeof module.calculateMandelbrotSet).toBe('function');
+          
+          // Test batch API with multiple points
+          const realCoords = new Float64Array([0, -0.5, 2.0]);
+          const imagCoords = new Float64Array([0, 0, 2.0]);
+          const results = module.calculateMandelbrotSet(realCoords, imagCoords, 100, 2.0);
+          
+          // Verify results
+          expect(results).toBeDefined();
+          expect(results.length).toBe(3);
+          expect(results instanceof Uint32Array).toBe(true);
+          
+          // Verify specific results
+          expect(results[0]).toBe(100); // (0, 0) is in the set
+          expect(results[2]).toBeLessThan(10); // (2, 2) escapes quickly
+          
+          console.log(`✓ ${moduleName} module batch API tested successfully`);
+          
+        } catch (error) {
+          // JavaScript module should always work, so don't skip it silently
+          if (moduleName === 'javascript') {
+            throw error;
+          }
+          console.warn(`Skipping ${moduleName} module batch API test:`, error.message);
+        }
+      }
+    }, 30000);
+
+    it('should verify batch API returns correct array length', async () => {
+      // Requirements: 2.1, 2.6 - Batch API should return array with same length as input
+      try {
+        const module = await loadWasmModule('javascript');
+        
+        // Test with various array sizes
+        const sizes = [1, 5, 10, 100];
+        
+        for (const size of sizes) {
+          const realCoords = new Float64Array(size).fill(0);
+          const imagCoords = new Float64Array(size).fill(0);
+          const results = module.calculateMandelbrotSet(realCoords, imagCoords, 100, 2.0);
+          
+          expect(results.length).toBe(size);
+          console.log(`✓ Batch API returns correct length for ${size} points`);
+        }
+        
+      } catch (error) {
+        console.warn('Warning: Could not test batch API array length:', error.message);
+        throw error;
+      }
+    }, 30000);
   });
 });

@@ -42,19 +42,19 @@ export class RenderEngine {
       throw new Error('Failed to get 2D rendering context from canvas');
     }
     
-    // Verify wasm module has required function
-    if (!this.wasmModule || typeof this.wasmModule.calculatePoint !== 'function') {
-      throw new Error('WebAssembly module must expose calculatePoint function');
+    // Verify wasm module has required batch function
+    if (!this.wasmModule || typeof this.wasmModule.calculateMandelbrotSet !== 'function') {
+      throw new Error('WebAssembly module must expose calculateMandelbrotSet function');
     }
   }
 
   /**
    * Switch to a different WebAssembly module and trigger re-render
-   * @param {Object} newModule - New WebAssembly module with calculatePoint function
+   * @param {Object} newModule - New WebAssembly module with calculateMandelbrotSet function
    */
   setWasmModule(newModule) {
-    if (!newModule || typeof newModule.calculatePoint !== 'function') {
-      throw new Error('WebAssembly module must expose calculatePoint function');
+    if (!newModule || typeof newModule.calculateMandelbrotSet !== 'function') {
+      throw new Error('WebAssembly module must expose calculateMandelbrotSet function');
     }
     this.wasmModule = newModule;
     // Trigger re-render with the new module
@@ -151,25 +151,21 @@ export class RenderEngine {
   }
 
   /**
-   * Render the Mandelbrot set to the canvas
-   * Iterates over all pixels, calculates iteration counts, maps to colors, and draws
+   * Render the Mandelbrot set to the canvas using batch API
+   * Prepares coordinate arrays for all pixels, makes single batch call, and draws results
    * @returns {number} Render time in milliseconds
    */
   render() {
-    // Start timing
-    const startTime = performance.now();
-    
     const width = this.canvas.width;
     const height = this.canvas.height;
+    const totalPixels = width * height;
     
-    // Create ImageData buffer for efficient pixel manipulation
-    const imageData = this.ctx.createImageData(width, height);
-    const data = imageData.data;
+    // Create coordinate arrays for all pixels
+    const realCoords = new Float64Array(totalPixels);
+    const imagCoords = new Float64Array(totalPixels);
     
-    // Get current viewport bounds
-    const bounds = this.viewportManager.getBounds();
-    
-    // Iterate over each pixel in the canvas
+    // Populate coordinate arrays by iterating through canvas pixels
+    let pixelIndex = 0;
     for (let canvasY = 0; canvasY < height; canvasY++) {
       for (let canvasX = 0; canvasX < width; canvasX++) {
         // Convert canvas coordinates to complex plane coordinates
@@ -180,34 +176,48 @@ export class RenderEngine {
           height
         );
         
-        // Calculate iteration count for this point using WebAssembly
-        const iterations = this.wasmModule.calculatePoint(
-          real,
-          imag,
-          this.maxIterations,
-          this.escapeRadius
-        );
-        
-        // Map iteration count to color
-        const color = iterationToColor(iterations, this.maxIterations);
-        
-        // Calculate pixel index in ImageData array (RGBA format)
-        const pixelIndex = (canvasY * width + canvasX) * 4;
-        
-        // Set pixel color (RGBA)
-        data[pixelIndex] = color.r;     // Red
-        data[pixelIndex + 1] = color.g; // Green
-        data[pixelIndex + 2] = color.b; // Blue
-        data[pixelIndex + 3] = 255;     // Alpha (fully opaque)
+        realCoords[pixelIndex] = real;
+        imagCoords[pixelIndex] = imag;
+        pixelIndex++;
       }
     }
     
-    // Draw the ImageData to the canvas in one operation
-    this.ctx.putImageData(imageData, 0, 0);
+    // Start timing for batch calculation
+    const startTime = performance.now();
+    
+    // Make single batch call to calculation module
+    const iterations = this.wasmModule.calculateMandelbrotSet(
+      realCoords,
+      imagCoords,
+      this.maxIterations,
+      this.escapeRadius
+    );
     
     // End timing and store result
     const endTime = performance.now();
     this.lastRenderTime = endTime - startTime;
+    
+    // Create ImageData buffer for efficient pixel manipulation
+    const imageData = this.ctx.createImageData(width, height);
+    const data = imageData.data;
+    
+    // Map iteration results to pixels and draw to canvas
+    for (let i = 0; i < totalPixels; i++) {
+      // Map iteration count to color
+      const color = iterationToColor(iterations[i], this.maxIterations);
+      
+      // Calculate pixel index in ImageData array (RGBA format)
+      const dataIndex = i * 4;
+      
+      // Set pixel color (RGBA)
+      data[dataIndex] = color.r;     // Red
+      data[dataIndex + 1] = color.g; // Green
+      data[dataIndex + 2] = color.b; // Blue
+      data[dataIndex + 3] = 255;     // Alpha (fully opaque)
+    }
+    
+    // Draw the ImageData to the canvas in one operation
+    this.ctx.putImageData(imageData, 0, 0);
     
     return this.lastRenderTime;
   }

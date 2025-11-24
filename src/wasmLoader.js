@@ -53,7 +53,7 @@ const DEFAULT_MODULE = 'rust';
 /**
  * Load and instantiate a Rust WebAssembly module
  * @param {Object} config - Module configuration
- * @returns {Promise<Object>} Module instance with calculatePoint function
+ * @returns {Promise<Object>} Module instance with calculatePoint and calculateMandelbrotSet functions
  */
 async function loadRustModule(config) {
   try {
@@ -63,10 +63,32 @@ async function loadRustModule(config) {
     // Initialize the WebAssembly module
     await wasmModule.default();
     
+    // Verify the point calculation function exists
+    if (!wasmModule.calculate_point) {
+      throw new Error('calculate_point function not found in Rust module');
+    }
+    
+    // Verify batch API function exists
+    if (!wasmModule.calculate_mandelbrot_set) {
+      throw new Error('calculate_mandelbrot_set (batch API) function not found in Rust module');
+    }
+    
     // Return wrapper with standardized interface
     return {
       calculatePoint: (real, imag, maxIterations, escapeRadius) => {
         return wasmModule.calculate_point(real, imag, maxIterations, escapeRadius);
+      },
+      calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+        // Call the batch calculation function
+        const results = wasmModule.calculate_mandelbrot_set(
+          realCoords,
+          imagCoords,
+          maxIterations,
+          escapeRadius
+        );
+        
+        // Convert result to Uint32Array if needed
+        return results instanceof Uint32Array ? results : new Uint32Array(results);
       },
       name: config.name,
       type: 'rust'
@@ -94,10 +116,54 @@ async function loadCppModule(config) {
       throw new Error('calculatePoint function not found in C++ module');
     }
     
+    // Verify batch API function exists
+    if (!instance._calculateMandelbrotSet) {
+      throw new Error('calculateMandelbrotSet function not found in C++ module');
+    }
+    
     // Return wrapper with standardized interface
     return {
       calculatePoint: (real, imag, maxIterations, escapeRadius) => {
         return instance._calculatePoint(real, imag, maxIterations, escapeRadius);
+      },
+      calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+        const length = Math.min(realCoords.length, imagCoords.length);
+        
+        // Allocate memory for input arrays in WASM heap
+        const realPtr = instance._malloc(length * 8); // 8 bytes per double
+        const imagPtr = instance._malloc(length * 8);
+        
+        // Copy data to WASM heap
+        instance.HEAPF64.set(realCoords, realPtr / 8);
+        instance.HEAPF64.set(imagCoords, imagPtr / 8);
+        
+        // Call the batch calculation function
+        const resultsPtr = instance._calculateMandelbrotSet(
+          realPtr,
+          imagPtr,
+          length,
+          maxIterations,
+          escapeRadius
+        );
+        
+        // Free input arrays
+        instance._free(realPtr);
+        instance._free(imagPtr);
+        
+        if (!resultsPtr) {
+          throw new Error('Failed to allocate memory for results in C++ module');
+        }
+        
+        // Copy results from WASM heap to JavaScript array
+        const results = new Uint32Array(length);
+        for (let i = 0; i < length; i++) {
+          results[i] = instance.HEAPU32[resultsPtr / 4 + i];
+        }
+        
+        // Free results array
+        instance._freeResults(resultsPtr);
+        
+        return results;
       },
       name: config.name,
       type: 'cpp'
@@ -116,9 +182,14 @@ async function loadGoModule(config) {
   try {
     // Load the Go Wasm exec helper if not already loaded
     if (!globalThis.Go) {
-      // For TinyGo, we need to provide minimal Go runtime support
-      // This is a simplified version - in production, you'd load wasm_exec.js
-      throw new Error('Go WebAssembly runtime not available. Please ensure wasm_exec.js is loaded.');
+      // Dynamically load wasm_exec.js
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = '/wasm/go/wasm_exec.js';
+        script.onload = resolve;
+        script.onerror = () => reject(new Error('Failed to load wasm_exec.js'));
+        document.head.appendChild(script);
+      });
     }
     
     // Fetch the WebAssembly binary
@@ -146,10 +217,26 @@ async function loadGoModule(config) {
       throw new Error('calculatePoint function not found in Go module');
     }
     
+    // Verify batch API function exists
+    if (!globalThis.calculateMandelbrotSet) {
+      throw new Error('calculateMandelbrotSet function not found in Go module');
+    }
+    
     // Return wrapper with standardized interface
     return {
       calculatePoint: (real, imag, maxIterations, escapeRadius) => {
         return globalThis.calculatePoint(real, imag, maxIterations, escapeRadius);
+      },
+      calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+        // Convert typed arrays to regular arrays for Go
+        const realArray = Array.from(realCoords);
+        const imagArray = Array.from(imagCoords);
+        
+        // Call the batch calculation function
+        const results = globalThis.calculateMandelbrotSet(realArray, imagArray, maxIterations, escapeRadius);
+        
+        // Convert result to Uint32Array
+        return new Uint32Array(results);
       },
       name: config.name,
       type: 'go'
@@ -162,7 +249,7 @@ async function loadGoModule(config) {
 /**
  * Load and instantiate a Moonbit WebAssembly module
  * @param {Object} config - Module configuration
- * @returns {Promise<Object>} Module instance with calculatePoint function
+ * @returns {Promise<Object>} Module instance with calculatePoint and calculateMandelbrotSet functions
  */
 async function loadMoonbitModule(config) {
   try {
@@ -182,9 +269,16 @@ async function loadMoonbitModule(config) {
       }
     });
     
-    // Verify the function exists
+    // Verify the point calculation function exists
     if (!result.instance.exports.calculatePoint) {
       throw new Error('calculatePoint function not found in Moonbit module');
+    }
+    
+    // Check if batch API function exists (may not be implemented yet)
+    const hasBatchAPI = !!result.instance.exports.calculateMandelbrotSet;
+    
+    if (!hasBatchAPI) {
+      console.warn('calculateMandelbrotSet (batch API) function not found in Moonbit module - falling back to per-pixel calculation');
     }
     
     // Return wrapper with standardized interface
@@ -192,8 +286,34 @@ async function loadMoonbitModule(config) {
       calculatePoint: (real, imag, maxIterations, escapeRadius) => {
         return result.instance.exports.calculatePoint(real, imag, maxIterations, escapeRadius);
       },
+      calculateMandelbrotSet: hasBatchAPI 
+        ? (realCoords, imagCoords, maxIterations, escapeRadius) => {
+            // Use native batch API if available
+            const results = result.instance.exports.calculateMandelbrotSet(
+              realCoords,
+              imagCoords,
+              maxIterations,
+              escapeRadius
+            );
+            return results instanceof Uint32Array ? results : new Uint32Array(results);
+          }
+        : (realCoords, imagCoords, maxIterations, escapeRadius) => {
+            // Fallback: calculate each point individually
+            const length = Math.min(realCoords.length, imagCoords.length);
+            const results = new Uint32Array(length);
+            for (let i = 0; i < length; i++) {
+              results[i] = result.instance.exports.calculatePoint(
+                realCoords[i],
+                imagCoords[i],
+                maxIterations,
+                escapeRadius
+              );
+            }
+            return results;
+          },
       name: config.name,
-      type: 'moonbit'
+      type: 'moonbit',
+      hasBatchAPI
     };
   } catch (error) {
     throw new Error(`Failed to load Moonbit module: ${error.message}`);
@@ -203,22 +323,39 @@ async function loadMoonbitModule(config) {
 /**
  * Load a JavaScript calculation module
  * @param {Object} config - Module configuration
- * @returns {Promise<Object>} Module instance with calculatePoint function
+ * @returns {Promise<Object>} Module instance with calculatePoint and calculateMandelbrotSet functions
  */
 async function loadJavaScriptModule(config) {
   try {
     // Dynamically import the JavaScript calculator module
     const jsModule = await import(config.path);
     
-    // Verify the function exists
+    // Verify the point calculation function exists
     if (!jsModule.calculatePoint) {
       throw new Error('calculatePoint function not found in JavaScript module');
+    }
+    
+    // Verify batch API function exists
+    if (!jsModule.calculateMandelbrotSet) {
+      throw new Error('calculateMandelbrotSet (batch API) function not found in JavaScript module');
     }
     
     // Return wrapper with standardized interface
     return {
       calculatePoint: (real, imag, maxIterations, escapeRadius) => {
         return jsModule.calculatePoint(real, imag, maxIterations, escapeRadius);
+      },
+      calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+        // Call the batch calculation function
+        const results = jsModule.calculateMandelbrotSet(
+          realCoords,
+          imagCoords,
+          maxIterations,
+          escapeRadius
+        );
+        
+        // Ensure result is Uint32Array
+        return results instanceof Uint32Array ? results : new Uint32Array(results);
       },
       name: config.name,
       type: 'javascript'
@@ -266,12 +403,16 @@ export async function loadWasmModule(moduleName) {
         throw new Error(`Unknown module type: ${config.type}`);
     }
     
-    // Verify the module exposes the required function
+    // Verify the module exposes the required functions
     if (typeof module.calculatePoint !== 'function') {
       throw new Error(`Module ${config.name} does not expose calculatePoint function`);
     }
     
-    console.log(`Successfully loaded ${config.name} module`);
+    if (typeof module.calculateMandelbrotSet !== 'function') {
+      throw new Error(`Module ${config.name} does not expose calculateMandelbrotSet (batch API) function`);
+    }
+    
+    console.log(`Successfully loaded ${config.name} module with batch API support`);
     return module;
     
   } catch (error) {

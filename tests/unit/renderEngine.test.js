@@ -13,7 +13,7 @@ describe('RenderEngine', () => {
     // Create a canvas using the canvas package
     canvas = createCanvas(100, 100);
     
-    // Create a mock WebAssembly module
+    // Create a mock WebAssembly module with batch API
     mockWasmModule = {
       calculatePoint: vi.fn((real, imag, maxIterations, escapeRadius) => {
         // Simple mock: return 0 for points in set, maxIterations/2 for others
@@ -21,6 +21,20 @@ describe('RenderEngine', () => {
         const zImag = imag;
         const magnitude = Math.sqrt(zReal * zReal + zImag * zImag);
         return magnitude < 2.0 ? maxIterations : Math.floor(maxIterations / 2);
+      }),
+      calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+        // Batch calculation mock
+        const length = Math.min(realCoords.length, imagCoords.length);
+        const results = new Uint32Array(length);
+        
+        for (let i = 0; i < length; i++) {
+          const zReal = realCoords[i];
+          const zImag = imagCoords[i];
+          const magnitude = Math.sqrt(zReal * zReal + zImag * zImag);
+          results[i] = magnitude < 2.0 ? maxIterations : Math.floor(maxIterations / 2);
+        }
+        
+        return results;
       }),
       name: 'Mock',
       type: 'mock'
@@ -74,7 +88,7 @@ describe('RenderEngine', () => {
       }).toThrow('Failed to get 2D rendering context from canvas');
     });
 
-    it('should throw error if wasm module does not expose calculatePoint', () => {
+    it('should throw error if wasm module does not expose calculateMandelbrotSet', () => {
       const badModule = {
         name: 'Bad',
         type: 'bad'
@@ -82,12 +96,12 @@ describe('RenderEngine', () => {
       
       expect(() => {
         new RenderEngine(canvas, badModule, viewportManager);
-      }).toThrow('WebAssembly module must expose calculatePoint function');
+      }).toThrow('WebAssembly module must expose calculateMandelbrotSet function');
     });
   });
 
   describe('render', () => {
-    it('should call wasm calculatePoint for each pixel', () => {
+    it('should create coordinate arrays with correct length', () => {
       // Use a small canvas for faster test
       canvas.width = 10;
       canvas.height = 10;
@@ -95,24 +109,46 @@ describe('RenderEngine', () => {
       renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
       renderEngine.render();
       
-      // Should call calculatePoint once for each pixel
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalledTimes(100);
+      // Should call batch calculation once
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      // Check that coordinate arrays have correct length
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      const realCoords = call[0];
+      const imagCoords = call[1];
+      
+      expect(realCoords.length).toBe(100); // 10 * 10 pixels
+      expect(imagCoords.length).toBe(100);
     });
 
-    it('should call calculatePoint with correct parameters', () => {
+    it('should call batch calculation once (not per pixel)', () => {
       canvas.width = 10;
       canvas.height = 10;
       
       renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
       renderEngine.render();
       
-      // Check that at least one call has the correct structure
-      const firstCall = mockWasmModule.calculatePoint.mock.calls[0];
-      expect(firstCall).toHaveLength(4);
-      expect(typeof firstCall[0]).toBe('number'); // real
-      expect(typeof firstCall[1]).toBe('number'); // imag
-      expect(firstCall[2]).toBe(256); // maxIterations
-      expect(firstCall[3]).toBe(2.0); // escapeRadius
+      // Should call calculateMandelbrotSet exactly once, not once per pixel
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      // Old per-pixel function should not be called
+      expect(mockWasmModule.calculatePoint).not.toHaveBeenCalled();
+    });
+
+    it('should call batch calculation with correct parameters', () => {
+      canvas.width = 10;
+      canvas.height = 10;
+      
+      renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
+      renderEngine.render();
+      
+      // Check that the call has the correct structure
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      expect(call).toHaveLength(4);
+      expect(call[0]).toBeInstanceOf(Float64Array); // realCoords
+      expect(call[1]).toBeInstanceOf(Float64Array); // imagCoords
+      expect(call[2]).toBe(256); // maxIterations
+      expect(call[3]).toBe(2.0); // escapeRadius
     });
 
     it('should draw pixels to canvas', () => {
@@ -143,7 +179,7 @@ describe('RenderEngine', () => {
       renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
       renderEngine.render();
       
-      // Should call canvasToComplex once for each pixel
+      // Should call canvasToComplex once for each pixel to build coordinate arrays
       expect(canvasToComplexSpy).toHaveBeenCalledTimes(100);
     });
 
@@ -154,8 +190,42 @@ describe('RenderEngine', () => {
       renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
       renderEngine.render();
       
-      // Should call calculatePoint once for each pixel
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalledTimes(300);
+      // Should call batch calculation once with correct array size
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      expect(call[0].length).toBe(300); // 20 * 15 pixels
+      expect(call[1].length).toBe(300);
+    });
+    
+    it('should correctly map results array to canvas pixels', () => {
+      canvas.width = 5;
+      canvas.height = 5;
+      
+      const ctx = canvas.getContext('2d');
+      const putImageDataSpy = vi.spyOn(ctx, 'putImageData');
+      
+      renderEngine = new RenderEngine(canvas, mockWasmModule, viewportManager);
+      renderEngine.render();
+      
+      // Should call putImageData once to draw all pixels
+      expect(putImageDataSpy).toHaveBeenCalledTimes(1);
+      
+      // Check that ImageData has correct dimensions
+      const imageData = putImageDataSpy.mock.calls[0][0];
+      expect(imageData.width).toBe(5);
+      expect(imageData.height).toBe(5);
+      
+      // Verify that all pixels have been set (not all zeros)
+      const data = imageData.data;
+      let hasNonZeroPixel = false;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i] !== 0 || data[i + 1] !== 0 || data[i + 2] !== 0) {
+          hasNonZeroPixel = true;
+          break;
+        }
+      }
+      expect(hasNonZeroPixel).toBe(true);
     });
 
     it('should produce valid ImageData with RGBA values', () => {
@@ -187,7 +257,9 @@ describe('RenderEngine', () => {
   describe('setWasmModule', () => {
     it('should switch to a new wasm module', () => {
       const newModule = {
-        calculatePoint: vi.fn(() => 100),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords) => {
+          return new Uint32Array(realCoords.length).fill(100);
+        }),
         name: 'New',
         type: 'new'
       };
@@ -197,7 +269,7 @@ describe('RenderEngine', () => {
       expect(renderEngine.wasmModule).toBe(newModule);
     });
 
-    it('should throw error if new module does not expose calculatePoint', () => {
+    it('should throw error if new module does not expose calculateMandelbrotSet', () => {
       const badModule = {
         name: 'Bad',
         type: 'bad'
@@ -205,7 +277,7 @@ describe('RenderEngine', () => {
       
       expect(() => {
         renderEngine.setWasmModule(badModule);
-      }).toThrow('WebAssembly module must expose calculatePoint function');
+      }).toThrow('WebAssembly module must expose calculateMandelbrotSet function');
     });
 
     it('should trigger re-render after module change', () => {
@@ -213,7 +285,9 @@ describe('RenderEngine', () => {
       canvas.height = 5;
       
       const newModule = {
-        calculatePoint: vi.fn(() => 100),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords) => {
+          return new Uint32Array(realCoords.length).fill(100);
+        }),
         name: 'New',
         type: 'new'
       };
@@ -232,7 +306,9 @@ describe('RenderEngine', () => {
       canvas.height = 5;
       
       const newModule = {
-        calculatePoint: vi.fn(() => 100),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords) => {
+          return new Uint32Array(realCoords.length).fill(100);
+        }),
         name: 'New',
         type: 'new'
       };
@@ -240,9 +316,9 @@ describe('RenderEngine', () => {
       renderEngine.setWasmModule(newModule);
       
       // New module should be called (automatically by setWasmModule)
-      expect(newModule.calculatePoint).toHaveBeenCalled();
+      expect(newModule.calculateMandelbrotSet).toHaveBeenCalled();
       // Old module should not be called
-      expect(mockWasmModule.calculatePoint).not.toHaveBeenCalled();
+      expect(mockWasmModule.calculateMandelbrotSet).not.toHaveBeenCalled();
     });
   });
 
@@ -283,10 +359,10 @@ describe('RenderEngine', () => {
       
       renderEngine.render();
       
-      // Check that calculatePoint was called with new parameters
-      const firstCall = mockWasmModule.calculatePoint.mock.calls[0];
-      expect(firstCall[2]).toBe(512); // maxIterations
-      expect(firstCall[3]).toBe(4.0); // escapeRadius
+      // Check that batch calculation was called with new parameters
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      expect(call[2]).toBe(512); // maxIterations
+      expect(call[3]).toBe(4.0); // escapeRadius
     });
   });
 });

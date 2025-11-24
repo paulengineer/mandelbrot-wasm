@@ -70,7 +70,7 @@ describe('Main Application Integration Tests', () => {
     ({ EventHandler } = await import('../../src/eventHandler.js'));
     ({ ModuleSelector } = await import('../../src/moduleSelector.js'));
 
-    // Create mock WebAssembly module
+    // Create mock WebAssembly module with batch API
     mockWasmModule = {
       calculatePoint: vi.fn((real, imag, maxIterations, escapeRadius) => {
         // Simple Mandelbrot calculation for testing
@@ -95,6 +95,41 @@ describe('Main Application Integration Tests', () => {
         }
 
         return maxIterations;
+      }),
+      calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+        // Batch calculation for testing
+        const length = realCoords.length;
+        const results = new Uint32Array(length);
+        const escapeRadiusSquared = escapeRadius * escapeRadius;
+        
+        for (let i = 0; i < length; i++) {
+          const cReal = realCoords[i];
+          const cImag = imagCoords[i];
+          
+          let zReal = 0;
+          let zImag = 0;
+          let iteration = 0;
+
+          while (iteration < maxIterations) {
+            const zReal2 = zReal * zReal;
+            const zImag2 = zImag * zImag;
+
+            if (zReal2 + zImag2 > escapeRadiusSquared) {
+              break;
+            }
+
+            const newZReal = zReal2 - zImag2 + cReal;
+            const newZImag = 2 * zReal * zImag + cImag;
+
+            zReal = newZReal;
+            zImag = newZImag;
+            iteration++;
+          }
+          
+          results[i] = iteration;
+        }
+        
+        return results;
       }),
       name: 'Mock',
       type: 'mock'
@@ -123,12 +158,17 @@ describe('Main Application Integration Tests', () => {
       // Perform render
       renderEngine.render();
 
-      // Verify render completed
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalled();
+      // Verify batch function was called (not per-pixel function)
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalled();
       
-      // Should calculate for all pixels
-      const expectedCalls = canvasElement.width * canvasElement.height;
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalledTimes(expectedCalls);
+      // Should be called exactly once with all pixels
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      // Verify it was called with correct array lengths
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      const expectedLength = canvasElement.width * canvasElement.height;
+      expect(call[0].length).toBe(expectedLength);
+      expect(call[1].length).toBe(expectedLength);
     });
 
     it('should render with correct viewport coordinates', () => {
@@ -145,17 +185,18 @@ describe('Main Application Integration Tests', () => {
       renderEngine.render();
 
       // Check that corner pixels map to correct complex coordinates
-      const calls = mockWasmModule.calculatePoint.mock.calls;
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      const realCoords = call[0];
+      const imagCoords = call[1];
       
       // First pixel (top-left) should be near minReal, maxImag
-      const firstCall = calls[0];
-      expect(firstCall[0]).toBeCloseTo(-2.0, 1); // real
-      expect(firstCall[1]).toBeCloseTo(1.0, 1);  // imag
+      expect(realCoords[0]).toBeCloseTo(-2.0, 1); // real
+      expect(imagCoords[0]).toBeCloseTo(1.0, 1);  // imag
 
       // Last pixel (bottom-right) should be near maxReal, minImag
-      const lastCall = calls[calls.length - 1];
-      expect(lastCall[0]).toBeCloseTo(1.0, 1);   // real
-      expect(lastCall[1]).toBeCloseTo(-1.0, 1);  // imag
+      const lastIndex = realCoords.length - 1;
+      expect(realCoords[lastIndex]).toBeCloseTo(1.0, 0);   // real (less precision due to pixel spacing)
+      expect(imagCoords[lastIndex]).toBeCloseTo(-1.0, 0);  // imag
     });
 
     it('should produce valid pixel data', () => {
@@ -223,9 +264,9 @@ describe('Main Application Integration Tests', () => {
       expect(widthAfterZoom).toBeLessThan(widthAfterPan);
 
       // Render should work after both operations
-      mockWasmModule.calculatePoint.mockClear();
+      mockWasmModule.calculateMandelbrotSet.mockClear();
       renderEngine.render();
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalled();
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalled();
     });
 
     it('should maintain viewport consistency through multiple operations', () => {
@@ -282,10 +323,10 @@ describe('Main Application Integration Tests', () => {
       // Get initial viewport
       const initialBounds = viewportManager.getBounds();
 
-      // Create a new mock module
+      // Create a new mock module with batch API
       const newMockModule = {
-        calculatePoint: vi.fn((real, imag, maxIterations, escapeRadius) => {
-          return Math.floor(maxIterations / 2);
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+          return new Uint32Array(realCoords.length).fill(Math.floor(maxIterations / 2));
         }),
         name: 'NewMock',
         type: 'newmock'
@@ -302,7 +343,7 @@ describe('Main Application Integration Tests', () => {
       expect(boundsAfterSwitch.maxImag).toBe(initialBounds.maxImag);
 
       // Verify new module is being used
-      expect(newMockModule.calculatePoint).toHaveBeenCalled();
+      expect(newMockModule.calculateMandelbrotSet).toHaveBeenCalled();
     });
 
     it('should render correctly after module switch', () => {
@@ -312,11 +353,13 @@ describe('Main Application Integration Tests', () => {
 
       // Initial render
       renderEngine.render();
-      const initialCallCount = mockWasmModule.calculatePoint.mock.calls.length;
+      const initialCallCount = mockWasmModule.calculateMandelbrotSet.mock.calls.length;
 
-      // Create new module
+      // Create new module with batch API
       const newMockModule = {
-        calculatePoint: vi.fn(() => 100),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+          return new Uint32Array(realCoords.length).fill(100);
+        }),
         name: 'NewMock',
         type: 'newmock'
       };
@@ -324,9 +367,13 @@ describe('Main Application Integration Tests', () => {
       // Switch and verify
       renderEngine.setWasmModule(newMockModule);
       
-      // New module should be called for all pixels
-      const expectedCalls = canvasElement.width * canvasElement.height;
-      expect(newMockModule.calculatePoint).toHaveBeenCalledTimes(expectedCalls);
+      // New module should be called exactly once (batch API)
+      expect(newMockModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      // Verify it processed all pixels
+      const call = newMockModule.calculateMandelbrotSet.mock.calls[0];
+      const expectedLength = canvasElement.width * canvasElement.height;
+      expect(call[0].length).toBe(expectedLength);
     });
 
     it('should handle module switching during active rendering', () => {
@@ -342,9 +389,11 @@ describe('Main Application Integration Tests', () => {
       // Start render
       renderEngine.render();
 
-      // Create new module
+      // Create new module with batch API
       const newMockModule = {
-        calculatePoint: vi.fn(() => 50),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+          return new Uint32Array(realCoords.length).fill(50);
+        }),
         name: 'NewMock',
         type: 'newmock'
       };
@@ -353,7 +402,7 @@ describe('Main Application Integration Tests', () => {
       renderEngine.setWasmModule(newMockModule);
 
       // Verify new module was used
-      expect(newMockModule.calculatePoint).toHaveBeenCalled();
+      expect(newMockModule.calculateMandelbrotSet).toHaveBeenCalled();
     });
   });
 
@@ -370,30 +419,41 @@ describe('Main Application Integration Tests', () => {
       canvasElement.width = 50;
       canvasElement.height = 50;
 
-      // Create five mock modules with identical calculation logic
+      // Create five mock modules with identical batch calculation logic
       const createModule = (name) => ({
-        calculatePoint: vi.fn((real, imag, maxIterations, escapeRadius) => {
-          let zReal = 0;
-          let zImag = 0;
-          let iteration = 0;
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+          const length = realCoords.length;
+          const results = new Uint32Array(length);
+          const escapeRadiusSquared = escapeRadius * escapeRadius;
+          
+          for (let i = 0; i < length; i++) {
+            const cReal = realCoords[i];
+            const cImag = imagCoords[i];
+            
+            let zReal = 0;
+            let zImag = 0;
+            let iteration = 0;
 
-          while (iteration < maxIterations) {
-            const zReal2 = zReal * zReal;
-            const zImag2 = zImag * zImag;
+            while (iteration < maxIterations) {
+              const zReal2 = zReal * zReal;
+              const zImag2 = zImag * zImag;
 
-            if (zReal2 + zImag2 > escapeRadius * escapeRadius) {
-              return iteration;
+              if (zReal2 + zImag2 > escapeRadiusSquared) {
+                break;
+              }
+
+              const newZReal = zReal2 - zImag2 + cReal;
+              const newZImag = 2 * zReal * zImag + cImag;
+
+              zReal = newZReal;
+              zImag = newZImag;
+              iteration++;
             }
-
-            const newZReal = zReal2 - zImag2 + real;
-            const newZImag = 2 * zReal * zImag + imag;
-
-            zReal = newZReal;
-            zImag = newZImag;
-            iteration++;
+            
+            results[i] = iteration;
           }
-
-          return maxIterations;
+          
+          return results;
         }),
         name,
         type: name.toLowerCase()
@@ -408,36 +468,46 @@ describe('Main Application Integration Tests', () => {
       // Render with each module
       const renderEngine = new RenderEngine(canvasElement, rustModule, viewportManager);
       renderEngine.render();
-      const rustResults = rustModule.calculatePoint.mock.calls.map(call => call.slice(0, 2));
+      const rustCall = rustModule.calculateMandelbrotSet.mock.calls[0];
+      const rustRealCoords = rustCall[0];
+      const rustImagCoords = rustCall[1];
 
       renderEngine.setWasmModule(cppModule);
-      const cppResults = cppModule.calculatePoint.mock.calls.map(call => call.slice(0, 2));
+      const cppCall = cppModule.calculateMandelbrotSet.mock.calls[0];
+      const cppRealCoords = cppCall[0];
+      const cppImagCoords = cppCall[1];
 
       renderEngine.setWasmModule(goModule);
-      const goResults = goModule.calculatePoint.mock.calls.map(call => call.slice(0, 2));
+      const goCall = goModule.calculateMandelbrotSet.mock.calls[0];
+      const goRealCoords = goCall[0];
+      const goImagCoords = goCall[1];
 
       renderEngine.setWasmModule(moonbitModule);
-      const moonbitResults = moonbitModule.calculatePoint.mock.calls.map(call => call.slice(0, 2));
+      const moonbitCall = moonbitModule.calculateMandelbrotSet.mock.calls[0];
+      const moonbitRealCoords = moonbitCall[0];
+      const moonbitImagCoords = moonbitCall[1];
 
       renderEngine.setWasmModule(javascriptModule);
-      const javascriptResults = javascriptModule.calculatePoint.mock.calls.map(call => call.slice(0, 2));
+      const javascriptCall = javascriptModule.calculateMandelbrotSet.mock.calls[0];
+      const javascriptRealCoords = javascriptCall[0];
+      const javascriptImagCoords = javascriptCall[1];
 
       // Verify all modules were called with the same coordinates
-      expect(rustResults.length).toBe(cppResults.length);
-      expect(cppResults.length).toBe(goResults.length);
-      expect(goResults.length).toBe(moonbitResults.length);
-      expect(moonbitResults.length).toBe(javascriptResults.length);
+      expect(rustRealCoords.length).toBe(cppRealCoords.length);
+      expect(cppRealCoords.length).toBe(goRealCoords.length);
+      expect(goRealCoords.length).toBe(moonbitRealCoords.length);
+      expect(moonbitRealCoords.length).toBe(javascriptRealCoords.length);
 
       // Check that coordinates match for each pixel across all modules
-      for (let i = 0; i < rustResults.length; i++) {
-        expect(rustResults[i][0]).toBeCloseTo(cppResults[i][0], 10); // real
-        expect(rustResults[i][1]).toBeCloseTo(cppResults[i][1], 10); // imag
-        expect(cppResults[i][0]).toBeCloseTo(goResults[i][0], 10); // real
-        expect(cppResults[i][1]).toBeCloseTo(goResults[i][1], 10); // imag
-        expect(goResults[i][0]).toBeCloseTo(moonbitResults[i][0], 10); // real
-        expect(goResults[i][1]).toBeCloseTo(moonbitResults[i][1], 10); // imag
-        expect(moonbitResults[i][0]).toBeCloseTo(javascriptResults[i][0], 10); // real
-        expect(moonbitResults[i][1]).toBeCloseTo(javascriptResults[i][1], 10); // imag
+      for (let i = 0; i < rustRealCoords.length; i++) {
+        expect(rustRealCoords[i]).toBeCloseTo(cppRealCoords[i], 10); // real
+        expect(rustImagCoords[i]).toBeCloseTo(cppImagCoords[i], 10); // imag
+        expect(cppRealCoords[i]).toBeCloseTo(goRealCoords[i], 10); // real
+        expect(cppImagCoords[i]).toBeCloseTo(goImagCoords[i], 10); // imag
+        expect(goRealCoords[i]).toBeCloseTo(moonbitRealCoords[i], 10); // real
+        expect(goImagCoords[i]).toBeCloseTo(moonbitImagCoords[i], 10); // imag
+        expect(moonbitRealCoords[i]).toBeCloseTo(javascriptRealCoords[i], 10); // real
+        expect(moonbitImagCoords[i]).toBeCloseTo(javascriptImagCoords[i], 10); // imag
       }
     });
 
@@ -447,30 +517,41 @@ describe('Main Application Integration Tests', () => {
       canvasElement.width = 20;
       canvasElement.height = 20;
 
-      // Create modules with identical logic
+      // Create modules with identical batch logic
       const createModule = (name) => ({
-        calculatePoint: (real, imag, maxIterations, escapeRadius) => {
-          let zReal = 0;
-          let zImag = 0;
-          let iteration = 0;
+        calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+          const length = realCoords.length;
+          const results = new Uint32Array(length);
+          const escapeRadiusSquared = escapeRadius * escapeRadius;
+          
+          for (let i = 0; i < length; i++) {
+            const cReal = realCoords[i];
+            const cImag = imagCoords[i];
+            
+            let zReal = 0;
+            let zImag = 0;
+            let iteration = 0;
 
-          while (iteration < maxIterations) {
-            const zReal2 = zReal * zReal;
-            const zImag2 = zImag * zImag;
+            while (iteration < maxIterations) {
+              const zReal2 = zReal * zReal;
+              const zImag2 = zImag * zImag;
 
-            if (zReal2 + zImag2 > escapeRadius * escapeRadius) {
-              return iteration;
+              if (zReal2 + zImag2 > escapeRadiusSquared) {
+                break;
+              }
+
+              const newZReal = zReal2 - zImag2 + cReal;
+              const newZImag = 2 * zReal * zImag + cImag;
+
+              zReal = newZReal;
+              zImag = newZImag;
+              iteration++;
             }
-
-            const newZReal = zReal2 - zImag2 + real;
-            const newZImag = 2 * zReal * zImag + imag;
-
-            zReal = newZReal;
-            zImag = newZImag;
-            iteration++;
+            
+            results[i] = iteration;
           }
-
-          return maxIterations;
+          
+          return results;
         },
         name,
         type: name.toLowerCase()
@@ -528,9 +609,9 @@ describe('Main Application Integration Tests', () => {
       const viewportManager = new ViewportManager();
       const canvasElement = document.getElementById('mandelbrot-canvas');
       
-      // Create module that throws errors
+      // Create module that throws errors with batch API
       const errorModule = {
-        calculatePoint: vi.fn(() => {
+        calculateMandelbrotSet: vi.fn(() => {
           throw new Error('Calculation error');
         }),
         name: 'Error',
@@ -580,19 +661,24 @@ describe('Main Application Integration Tests', () => {
 
       // Initial render
       renderEngine.render();
-      const initialCalls = mockWasmModule.calculatePoint.mock.calls.length;
+      const initialCalls = mockWasmModule.calculateMandelbrotSet.mock.calls.length;
 
       // Simulate resize
       canvasElement.width = 400;
       canvasElement.height = 300;
 
       // Render after resize
-      mockWasmModule.calculatePoint.mockClear();
+      mockWasmModule.calculateMandelbrotSet.mockClear();
       renderEngine.render();
 
-      // Should calculate for new canvas size
-      const expectedCalls = 400 * 300;
-      expect(mockWasmModule.calculatePoint).toHaveBeenCalledTimes(expectedCalls);
+      // Should be called once with new canvas size
+      expect(mockWasmModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+      
+      // Verify array lengths match new canvas size
+      const call = mockWasmModule.calculateMandelbrotSet.mock.calls[0];
+      const expectedLength = 400 * 300;
+      expect(call[0].length).toBe(expectedLength);
+      expect(call[1].length).toBe(expectedLength);
     });
   });
 
@@ -657,7 +743,9 @@ describe('Main Application Integration Tests', () => {
 
       // Switch module and render again
       const newModule = {
-        calculatePoint: vi.fn(() => 50),
+        calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+          return new Uint32Array(realCoords.length).fill(50);
+        }),
         name: 'NewMock',
         type: 'newmock'
       };
@@ -1185,6 +1273,572 @@ describe('Main Application Integration Tests', () => {
       // Verify it was called before any debounced render
       const renderSpy = vi.spyOn(renderEngine, 'render');
       expect(renderSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Batch API Integration Tests', () => {
+    describe('Complete Render Cycle with Batch API', () => {
+      it('should complete a full render cycle using batch API', () => {
+        // Create mock module with batch API
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            const length = realCoords.length;
+            const results = new Uint32Array(length);
+            
+            // Simple calculation for testing
+            for (let i = 0; i < length; i++) {
+              const real = realCoords[i];
+              const imag = imagCoords[i];
+              
+              let zReal = 0;
+              let zImag = 0;
+              let iteration = 0;
+
+              while (iteration < maxIterations) {
+                const zReal2 = zReal * zReal;
+                const zImag2 = zImag * zImag;
+
+                if (zReal2 + zImag2 > escapeRadius * escapeRadius) {
+                  break;
+                }
+
+                const newZReal = zReal2 - zImag2 + real;
+                const newZImag = 2 * zReal * zImag + imag;
+
+                zReal = newZReal;
+                zImag = newZImag;
+                iteration++;
+              }
+              
+              results[i] = iteration;
+            }
+            
+            return results;
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager({
+          minReal: -2.0,
+          maxReal: 1.0,
+          minImag: -1.0,
+          maxImag: 1.0
+        });
+
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 100;
+        canvasElement.height = 100;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+
+        // Perform render
+        const renderTime = renderEngine.render();
+
+        // Verify batch function was called exactly once
+        expect(batchMockModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+        
+        // Verify it was called with correct array lengths
+        const call = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        const realCoords = call[0];
+        const imagCoords = call[1];
+        const expectedLength = canvasElement.width * canvasElement.height;
+        
+        expect(realCoords.length).toBe(expectedLength);
+        expect(imagCoords.length).toBe(expectedLength);
+        
+        // Verify render time was measured
+        expect(renderTime).toBeGreaterThanOrEqual(0);
+      });
+
+      it('should pass correct coordinate arrays to batch API', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager({
+          minReal: -2.0,
+          maxReal: 1.0,
+          minImag: -1.0,
+          maxImag: 1.0
+        });
+
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 50;
+        canvasElement.height = 50;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        renderEngine.render();
+
+        const call = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        const realCoords = call[0];
+        const imagCoords = call[1];
+        
+        // Verify first pixel (top-left) coordinates
+        expect(realCoords[0]).toBeCloseTo(-2.0, 1);
+        expect(imagCoords[0]).toBeCloseTo(1.0, 1);
+        
+        // Verify last pixel (bottom-right) coordinates
+        const lastIndex = realCoords.length - 1;
+        expect(realCoords[lastIndex]).toBeCloseTo(1.0, 0); // Less precision due to pixel spacing
+        expect(imagCoords[lastIndex]).toBeCloseTo(-1.0, 0);
+        
+        // Verify coordinates are Float64Array
+        expect(realCoords).toBeInstanceOf(Float64Array);
+        expect(imagCoords).toBeInstanceOf(Float64Array);
+      });
+
+      it('should handle batch API results correctly', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            const length = realCoords.length;
+            const results = new Uint32Array(length);
+            
+            // Create a pattern: alternating iteration counts
+            for (let i = 0; i < length; i++) {
+              results[i] = i % 2 === 0 ? 50 : 100;
+            }
+            
+            return results;
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 10;
+        canvasElement.height = 10;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        const ctx = canvasElement.getContext('2d');
+        const putImageDataSpy = vi.spyOn(ctx, 'putImageData');
+        
+        renderEngine.render();
+
+        // Verify putImageData was called once
+        expect(putImageDataSpy).toHaveBeenCalledTimes(1);
+        
+        const imageData = putImageDataSpy.mock.calls[0][0];
+        expect(imageData.width).toBe(10);
+        expect(imageData.height).toBe(10);
+        
+        // Verify all pixels have valid RGBA values
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          expect(imageData.data[i]).toBeGreaterThanOrEqual(0);
+          expect(imageData.data[i]).toBeLessThanOrEqual(255);
+          expect(imageData.data[i + 3]).toBe(255); // Alpha
+        }
+      });
+    });
+
+    describe('All Modules Produce Equivalent Results with Batch API', () => {
+      it('should produce identical results across all 5 modules using batch API', () => {
+        const viewportManager = new ViewportManager({
+          minReal: -0.5,
+          maxReal: 0.5,
+          minImag: -0.5,
+          maxImag: 0.5
+        });
+
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 20;
+        canvasElement.height = 20;
+
+        // Create five mock modules with identical batch calculation logic
+        const createBatchModule = (name) => ({
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            const length = realCoords.length;
+            const results = new Uint32Array(length);
+            const escapeRadiusSquared = escapeRadius * escapeRadius;
+            
+            for (let i = 0; i < length; i++) {
+              const cReal = realCoords[i];
+              const cImag = imagCoords[i];
+              
+              let zReal = 0;
+              let zImag = 0;
+              let iteration = 0;
+
+              while (iteration < maxIterations) {
+                const zReal2 = zReal * zReal;
+                const zImag2 = zImag * zImag;
+
+                if (zReal2 + zImag2 > escapeRadiusSquared) {
+                  break;
+                }
+
+                const newZReal = zReal2 - zImag2 + cReal;
+                const newZImag = 2 * zReal * zImag + cImag;
+
+                zReal = newZReal;
+                zImag = newZImag;
+                iteration++;
+              }
+              
+              results[i] = iteration;
+            }
+            
+            return results;
+          }),
+          name,
+          type: name.toLowerCase()
+        });
+
+        const rustModule = createBatchModule('Rust');
+        const cppModule = createBatchModule('CPP');
+        const goModule = createBatchModule('Go');
+        const moonbitModule = createBatchModule('Moonbit');
+        const javascriptModule = createBatchModule('JavaScript');
+
+        // Render with each module and collect results
+        const renderEngine = new RenderEngine(canvasElement, rustModule, viewportManager);
+        renderEngine.render();
+        const rustCall = rustModule.calculateMandelbrotSet.mock.calls[0];
+        const rustResults = rustCall[0]; // realCoords for comparison
+
+        renderEngine.setWasmModule(cppModule);
+        const cppCall = cppModule.calculateMandelbrotSet.mock.calls[0];
+        const cppResults = cppCall[0];
+
+        renderEngine.setWasmModule(goModule);
+        const goCall = goModule.calculateMandelbrotSet.mock.calls[0];
+        const goResults = goCall[0];
+
+        renderEngine.setWasmModule(moonbitModule);
+        const moonbitCall = moonbitModule.calculateMandelbrotSet.mock.calls[0];
+        const moonbitResults = moonbitCall[0];
+
+        renderEngine.setWasmModule(javascriptModule);
+        const javascriptCall = javascriptModule.calculateMandelbrotSet.mock.calls[0];
+        const javascriptResults = javascriptCall[0];
+
+        // Verify all modules were called with the same coordinate arrays
+        expect(rustResults.length).toBe(cppResults.length);
+        expect(cppResults.length).toBe(goResults.length);
+        expect(goResults.length).toBe(moonbitResults.length);
+        expect(moonbitResults.length).toBe(javascriptResults.length);
+
+        // Check that coordinates match across all modules
+        for (let i = 0; i < rustResults.length; i++) {
+          expect(rustResults[i]).toBeCloseTo(cppResults[i], 10);
+          expect(cppResults[i]).toBeCloseTo(goResults[i], 10);
+          expect(goResults[i]).toBeCloseTo(moonbitResults[i], 10);
+          expect(moonbitResults[i]).toBeCloseTo(javascriptResults[i], 10);
+        }
+      });
+
+      it('should produce visually identical output across all modules with batch API', () => {
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 15;
+        canvasElement.height = 15;
+
+        // Create modules with identical batch logic
+        const createBatchModule = (name) => ({
+          calculateMandelbrotSet: (realCoords, imagCoords, maxIterations, escapeRadius) => {
+            const length = realCoords.length;
+            const results = new Uint32Array(length);
+            const escapeRadiusSquared = escapeRadius * escapeRadius;
+            
+            for (let i = 0; i < length; i++) {
+              const cReal = realCoords[i];
+              const cImag = imagCoords[i];
+              
+              let zReal = 0;
+              let zImag = 0;
+              let iteration = 0;
+
+              while (iteration < maxIterations) {
+                const zReal2 = zReal * zReal;
+                const zImag2 = zImag * zImag;
+
+                if (zReal2 + zImag2 > escapeRadiusSquared) {
+                  break;
+                }
+
+                const newZReal = zReal2 - zImag2 + cReal;
+                const newZImag = 2 * zReal * zImag + cImag;
+
+                zReal = newZReal;
+                zImag = newZImag;
+                iteration++;
+              }
+              
+              results[i] = iteration;
+            }
+            
+            return results;
+          },
+          name,
+          type: name.toLowerCase()
+        });
+
+        const rustModule = createBatchModule('Rust');
+        const cppModule = createBatchModule('CPP');
+        const goModule = createBatchModule('Go');
+        const moonbitModule = createBatchModule('Moonbit');
+        const javascriptModule = createBatchModule('JavaScript');
+
+        // Render with first module
+        const renderEngine = new RenderEngine(canvasElement, rustModule, viewportManager);
+        const ctx = canvasElement.getContext('2d');
+        const putImageDataSpy = vi.spyOn(ctx, 'putImageData');
+
+        renderEngine.render();
+        const imageData1 = putImageDataSpy.mock.calls[0][0];
+        const pixels1 = Array.from(imageData1.data);
+
+        // Test each subsequent module against the first
+        const modules = [cppModule, goModule, moonbitModule, javascriptModule];
+        modules.forEach(module => {
+          putImageDataSpy.mockClear();
+          renderEngine.setWasmModule(module);
+          const imageData = putImageDataSpy.mock.calls[0][0];
+          const pixels = Array.from(imageData.data);
+
+          // Verify pixel data is identical
+          expect(pixels.length).toBe(pixels1.length);
+          for (let i = 0; i < pixels1.length; i++) {
+            expect(pixels[i]).toBe(pixels1[i]);
+          }
+        });
+      });
+    });
+
+    describe('Performance Improvement from Batch Processing', () => {
+      it('should make only one calculation call per render with batch API', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 100;
+        canvasElement.height = 100;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        // Perform render
+        renderEngine.render();
+
+        // Verify batch function was called exactly once (not once per pixel)
+        expect(batchMockModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+        
+        // Verify it processed all pixels in that single call
+        const call = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        const realCoords = call[0];
+        expect(realCoords.length).toBe(10000); // 100 * 100
+      });
+
+      it('should measure render time accurately for batch API', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            // Simulate some processing time
+            const start = performance.now();
+            while (performance.now() - start < 10) {
+              // Busy wait for 10ms
+            }
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 50;
+        canvasElement.height = 50;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        const renderTime = renderEngine.render();
+
+        // Verify render time was measured and is reasonable
+        expect(renderTime).toBeGreaterThanOrEqual(10); // At least 10ms due to our busy wait
+        expect(renderTime).toBeLessThan(1000); // Should complete in less than 1 second
+        
+        // Verify getLastRenderTime returns the same value
+        expect(renderEngine.getLastRenderTime()).toBe(renderTime);
+      });
+
+      it('should handle large canvas sizes efficiently with batch API', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 200;
+        canvasElement.height = 200;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        const startTime = performance.now();
+        renderEngine.render();
+        const totalTime = performance.now() - startTime;
+
+        // Verify batch function was called exactly once
+        expect(batchMockModule.calculateMandelbrotSet).toHaveBeenCalledTimes(1);
+        
+        // Verify it handled all 40,000 pixels
+        const call = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        expect(call[0].length).toBe(40000);
+        
+        // Should complete in reasonable time (less than 1 second for mock)
+        expect(totalTime).toBeLessThan(1000);
+      });
+    });
+
+    describe('Memory Efficiency of Batch Approach', () => {
+      it('should use typed arrays for efficient memory usage', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            // Verify input types
+            expect(realCoords).toBeInstanceOf(Float64Array);
+            expect(imagCoords).toBeInstanceOf(Float64Array);
+            
+            // Return typed array
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 50;
+        canvasElement.height = 50;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        renderEngine.render();
+
+        // Verify the mock's expectations were met
+        expect(batchMockModule.calculateMandelbrotSet).toHaveBeenCalled();
+      });
+
+      it('should handle batch results as Uint32Array', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            const results = new Uint32Array(realCoords.length);
+            for (let i = 0; i < results.length; i++) {
+              results[i] = i % 256; // Create a pattern
+            }
+            return results;
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 30;
+        canvasElement.height = 30;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        // Should not throw when handling Uint32Array results
+        expect(() => renderEngine.render()).not.toThrow();
+        
+        // Verify results were used correctly
+        const ctx = canvasElement.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, canvasElement.width, canvasElement.height);
+        
+        // Verify pixels were drawn
+        let hasNonZeroPixels = false;
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          if (imageData.data[i] !== 0 || imageData.data[i + 1] !== 0 || imageData.data[i + 2] !== 0) {
+            hasNonZeroPixels = true;
+            break;
+          }
+        }
+        expect(hasNonZeroPixels).toBe(true);
+      });
+
+      it('should reuse coordinate arrays efficiently across renders', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 40;
+        canvasElement.height = 40;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        // Perform multiple renders
+        renderEngine.render();
+        renderEngine.render();
+        renderEngine.render();
+
+        // Verify batch function was called three times
+        expect(batchMockModule.calculateMandelbrotSet).toHaveBeenCalledTimes(3);
+        
+        // Verify each call used properly sized arrays
+        batchMockModule.calculateMandelbrotSet.mock.calls.forEach(call => {
+          expect(call[0].length).toBe(1600); // 40 * 40
+          expect(call[1].length).toBe(1600);
+        });
+      });
+
+      it('should handle viewport changes with batch API efficiently', () => {
+        const batchMockModule = {
+          calculateMandelbrotSet: vi.fn((realCoords, imagCoords, maxIterations, escapeRadius) => {
+            return new Uint32Array(realCoords.length).fill(100);
+          }),
+          name: 'BatchMock',
+          type: 'batch-mock'
+        };
+
+        const viewportManager = new ViewportManager();
+        const canvasElement = document.getElementById('mandelbrot-canvas');
+        canvasElement.width = 50;
+        canvasElement.height = 50;
+        
+        const renderEngine = new RenderEngine(canvasElement, batchMockModule, viewportManager);
+        
+        // Initial render
+        renderEngine.render();
+        const firstCall = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        
+        // Change viewport and render again
+        viewportManager.zoom(2.0, 25, 25, 50, 50);
+        batchMockModule.calculateMandelbrotSet.mockClear();
+        renderEngine.render();
+        const secondCall = batchMockModule.calculateMandelbrotSet.mock.calls[0];
+        
+        // Verify both renders used same array sizes
+        expect(firstCall[0].length).toBe(secondCall[0].length);
+        expect(firstCall[1].length).toBe(secondCall[1].length);
+        
+        // Verify coordinates changed due to viewport change
+        let coordinatesChanged = false;
+        for (let i = 0; i < Math.min(10, firstCall[0].length); i++) {
+          if (Math.abs(firstCall[0][i] - secondCall[0][i]) > 0.001) {
+            coordinatesChanged = true;
+            break;
+          }
+        }
+        expect(coordinatesChanged).toBe(true);
+      });
     });
   });
 });

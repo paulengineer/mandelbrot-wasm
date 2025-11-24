@@ -133,6 +133,60 @@ describe('wasmLoader', () => {
         expect(error.message).toContain('Failed to load');
       }
     });
+
+    it('should expose calculateMandelbrotSet batch API function from loaded module', async () => {
+      // Requirements: 2.1, 5.2, 5.4 - System SHALL expose batch calculation function
+      try {
+        const module = await loadDefaultModule();
+        
+        // Verify calculateMandelbrotSet function exists
+        expect(module.calculateMandelbrotSet).toBeDefined();
+        expect(typeof module.calculateMandelbrotSet).toBe('function');
+        
+        // Test function with known inputs
+        const realCoords = new Float64Array([0, -0.5, 2.0]);
+        const imagCoords = new Float64Array([0, 0, 2.0]);
+        const results = module.calculateMandelbrotSet(realCoords, imagCoords, 100, 2.0);
+        
+        // Verify results
+        expect(results).toBeDefined();
+        expect(results.length).toBe(3);
+        expect(results instanceof Uint32Array).toBe(true);
+        
+        // Verify each result is valid
+        for (let i = 0; i < results.length; i++) {
+          expect(typeof results[i]).toBe('number');
+          expect(results[i]).toBeGreaterThanOrEqual(0);
+          expect(results[i]).toBeLessThanOrEqual(100);
+        }
+      } catch (error) {
+        // Module may not be available in test environment
+        expect(error.message).toContain('Failed to load');
+      }
+    });
+
+    it('should validate batch API function signature for all modules', async () => {
+      // Requirements: 2.1, 5.2, 5.4 - All modules should expose batch API
+      const modules = ['rust', 'javascript']; // Test only fast-loading modules
+      
+      for (const moduleName of modules) {
+        try {
+          const module = await loadWasmModule(moduleName);
+          
+          // Verify batch API function exists
+          expect(module.calculateMandelbrotSet).toBeDefined();
+          expect(typeof module.calculateMandelbrotSet).toBe('function');
+          
+          console.log(`✓ ${moduleName} module has batch API support`);
+        } catch (error) {
+          // Module may not be available in test environment
+          if (!error.message.includes('Failed to fetch') && !error.message.includes('Failed to load')) {
+            throw error;
+          }
+          console.log(`⚠ ${moduleName} module not available in test environment`);
+        }
+      }
+    });
   });
 
   describe('error handling', () => {

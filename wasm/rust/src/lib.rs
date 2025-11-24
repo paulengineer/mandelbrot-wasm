@@ -40,6 +40,66 @@ pub fn calculate_point(real: f64, imag: f64, max_iterations: u32, escape_radius:
     max_iterations
 }
 
+/// Calculate the Mandelbrot set for multiple points in a single batch call
+/// 
+/// # Arguments
+/// * `real_coords` - Array of real components for all points
+/// * `imag_coords` - Array of imaginary components for all points
+/// * `max_iterations` - Maximum number of iterations to perform
+/// * `escape_radius` - Threshold beyond which a point is considered escaped
+/// 
+/// # Returns
+/// Array of iteration counts, one for each input coordinate pair
+#[wasm_bindgen]
+pub fn calculate_mandelbrot_set(
+    real_coords: &[f64],
+    imag_coords: &[f64],
+    max_iterations: u32,
+    escape_radius: f64,
+) -> Vec<u32> {
+    // Ensure input arrays have the same length
+    let len = real_coords.len().min(imag_coords.len());
+    
+    // Pre-allocate result vector
+    let mut results = Vec::with_capacity(len);
+    
+    let escape_radius_squared = escape_radius * escape_radius;
+    
+    // Process each coordinate pair
+    for i in 0..len {
+        let c_real = real_coords[i];
+        let c_imag = imag_coords[i];
+        
+        let mut z_real = 0.0;
+        let mut z_imag = 0.0;
+        
+        let mut iteration = 0;
+        
+        for iter in 0..max_iterations {
+            // Calculate |z|^2 = z_real^2 + z_imag^2
+            let z_magnitude_squared = z_real * z_real + z_imag * z_imag;
+            
+            // Check if point has escaped
+            if z_magnitude_squared > escape_radius_squared {
+                iteration = iter;
+                break;
+            }
+            
+            // Calculate z = z^2 + c
+            // (a + bi)^2 = a^2 - b^2 + 2abi
+            let z_real_temp = z_real * z_real - z_imag * z_imag + c_real;
+            z_imag = 2.0 * z_real * z_imag + c_imag;
+            z_real = z_real_temp;
+            
+            iteration = iter + 1;
+        }
+        
+        results.push(iteration);
+    }
+    
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

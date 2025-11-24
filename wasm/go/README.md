@@ -48,11 +48,11 @@ sudo apt install golang-go
 
 ## Interface
 
-The module exports a single function:
+The module exports two functions:
 
 ### `calculatePoint(real, imag, maxIterations, escapeRadius)`
 
-Calculates the number of iterations for a point in the Mandelbrot set.
+Calculates the number of iterations for a single point in the Mandelbrot set.
 
 **Parameters:**
 - `real` (float64): Real component of the complex number c
@@ -62,6 +62,19 @@ Calculates the number of iterations for a point in the Mandelbrot set.
 
 **Returns:**
 - (uint32): The number of iterations before escape, or maxIterations if the point doesn't escape
+
+### `calculateMandelbrotSet(realCoords, imagCoords, maxIterations, escapeRadius)`
+
+Calculates the Mandelbrot set for multiple points in a single batch call.
+
+**Parameters:**
+- `realCoords` (array of float64): Array of real components for all points
+- `imagCoords` (array of float64): Array of imaginary components for all points
+- `maxIterations` (uint32): Maximum number of iterations to perform
+- `escapeRadius` (float64): Threshold beyond which a point is considered escaped
+
+**Returns:**
+- (array of uint32): Array of iteration counts, one for each input coordinate pair
 
 ## Usage from JavaScript
 
@@ -74,8 +87,14 @@ const result = await WebAssembly.instantiateStreaming(
 );
 go.run(result.instance);
 
-// Call the function
+// Call the single-point function
 const iterations = calculatePoint(0.0, 0.0, 100, 2.0);
+
+// Call the batch function
+const realCoords = [0.0, -0.5, 0.25];
+const imagCoords = [0.0, 0.0, 0.0];
+const results = calculateMandelbrotSet(realCoords, imagCoords, 100, 2.0);
+// results is an array: [100, 100, 3]
 ```
 
 Note: You'll need to include the `wasm_exec.js` file from the Go installation to use the `Go` class.
