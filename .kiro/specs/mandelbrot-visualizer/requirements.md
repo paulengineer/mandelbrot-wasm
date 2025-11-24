@@ -31,7 +31,7 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 
 ### Requirement 2
 
-**User Story:** As a user, I want the Mandelbrot calculations to be performed using WebAssembly, so that I experience fast rendering and smooth interactions.
+**User Story:** As a user, unless I have selected the Javascript calculation module option, I want the Mandelbrot calculations to be performed using WebAssembly, so that I experience fast rendering and smooth interactions.
 
 #### Acceptance Criteria
 
