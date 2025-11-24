@@ -401,3 +401,126 @@
 
 - [x] 37. Final Checkpoint - Ensure all new tests pass
   - Ensure all tests pass, ask the user if questions arise.
+
+## Phase 2: Batch API Migration
+
+- [x] 38. Update Rust WebAssembly module to batch API
+  - Modify Rust implementation to accept arrays of coordinates
+  - Implement calculateMandelbrotSet function that processes all pixels in one call
+  - Accept Float64Array for real and imaginary coordinates
+  - Return Uint32Array of iteration counts
+  - Update wasm-bindgen exports
+  - Build and test updated module
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 38.1 Write property test for Rust batch API array length
+  - **Property 4a: Batch calculation returns correct array length**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 38.2 Write property test for Rust batch API consistency
+  - **Property 4b: Batch calculation produces consistent results**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 39. Update C++ WebAssembly module to batch API
+  - Modify C++ implementation to accept arrays of coordinates
+  - Implement calculateMandelbrotSet function that processes all pixels in one call
+  - Accept memory pointers to coordinate arrays
+  - Return array of iteration counts
+  - Update Emscripten exports
+  - Build and test updated module
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 39.1 Write property test for C++ batch API array length
+  - **Property 4a: Batch calculation returns correct array length**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 39.2 Write property test for C++ batch API consistency
+  - **Property 4b: Batch calculation produces consistent results**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 40. Update Go WebAssembly module to batch API
+  - Modify Go implementation to accept arrays of coordinates
+  - Implement calculateMandelbrotSet function that processes all pixels in one call
+  - Accept slices of coordinate values
+  - Return slice of iteration counts
+  - Update TinyGo exports
+  - Build and test updated module
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 40.1 Write property test for Go batch API array length
+  - **Property 4a: Batch calculation returns correct array length**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 40.2 Write property test for Go batch API consistency
+  - **Property 4b: Batch calculation produces consistent results**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 41. Update Moonbit WebAssembly module to batch API
+  - Modify Moonbit implementation to accept arrays of coordinates
+  - Implement calculateMandelbrotSet function that processes all pixels in one call
+  - Accept arrays of coordinate values
+  - Return array of iteration counts
+  - Update Moonbit exports
+  - Build and test updated module
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 41.1 Write property test for Moonbit batch API array length
+  - **Property 4a: Batch calculation returns correct array length**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 41.2 Write property test for Moonbit batch API consistency
+  - **Property 4b: Batch calculation produces consistent results**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 42. Update JavaScript calculation module to batch API
+  - Modify JavaScript implementation to accept arrays of coordinates
+  - Implement calculateMandelbrotSet function that processes all pixels in one call
+  - Accept arrays of real and imaginary coordinates
+  - Return array of iteration counts
+  - Ensure function signature matches WASM modules
+  - _Requirements: 2.1, 2.5, 2.6, 5.1.1_
+
+- [x] 42.1 Write property test for JavaScript batch API array length
+  - **Property 4a: Batch calculation returns correct array length**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 42.2 Write property test for JavaScript batch API consistency
+  - **Property 4b: Batch calculation produces consistent results**
+  - **Validates: Requirements 2.1, 2.6**
+
+- [x] 43. Update Render Engine for batch API
+  - Modify render() method to prepare coordinate arrays for all pixels
+  - Create Float64Array for real coordinates (one per pixel)
+  - Create Float64Array for imaginary coordinates (one per pixel)
+  - Iterate through canvas pixels to populate coordinate arrays
+  - Make single batch call to calculation module
+  - Receive Uint32Array of iteration results
+  - Map results to pixels and draw to canvas
+  - Maintain timing measurement for batch call
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 43.1 Write unit tests for batch rendering
+  - Test that coordinate arrays are created with correct length
+  - Test that batch calculation is called once (not per pixel)
+  - Test that results array is correctly mapped to canvas
+  - _Requirements: 2.1, 2.6_
+
+- [x] 44. Update wasmLoader for batch API
+  - Update module loading to verify batch API function exists
+  - Update function signature validation for calculateMandelbrotSet
+  - Ensure backward compatibility handling if needed
+  - Update error messages for batch API
+  - _Requirements: 2.1, 5.2, 5.4_
+
+- [x] 45. Update integration tests for batch API
+  - Test complete render cycle with batch API
+  - Test all modules produce equivalent results with batch API
+  - Test performance improvement from batch processing
+  - Test memory efficiency of batch approach
+  - _Requirements: 2.1, 2.5, 2.6_
+
+- [x] 46. Final Checkpoint - Batch API Migration Complete
+  - Ensure all tests pass with batch API
+  - Verify performance improvements
+  - Confirm all modules work with new API
+  - Ask user if questions arise

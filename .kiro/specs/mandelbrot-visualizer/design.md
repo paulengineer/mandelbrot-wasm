@@ -4,7 +4,7 @@
 
 The Mandelbrot Visualizer is a high-performance web application that renders the Mandelbrot set fractal with real-time pan and zoom interactions. The system architecture separates concerns between the presentation layer (HTML/JavaScript), the computation engine (WebAssembly), and the rendering pipeline (Canvas API).
 
-The application follows a request-render cycle where user interactions update viewport parameters, trigger WebAssembly calculations for each pixel, and render the results to a full-screen canvas. Performance is achieved through WebAssembly's near-native execution speed and efficient memory sharing between JavaScript and Wasm.
+The application follows a request-render cycle where user interactions update viewport parameters, trigger a single WebAssembly batch calculation for all canvas pixels, and render the results to a full-screen canvas. Performance is achieved through WebAssembly's near-native execution speed, efficient batch processing, and optimized memory sharing between JavaScript and Wasm.
 
 ## Architecture
 
@@ -60,7 +60,7 @@ The application follows a request-render cycle where user interactions update vi
 1. **Initialization**: Page loads → Fetch and instantiate default module → Initialize canvas with 1:1 aspect ratio → Render module selector UI → Render viewport info UI → Render initial view (-2.0 to 1.0 real, -1.0 to 1.0 imaginary)
 2. **User Interaction**: Mouse/wheel event → Event handler updates viewport → Update viewport info display → Trigger debounced render (for zoom) or immediate render (for pan)
 3. **Module Selection**: User selects module (WASM or JavaScript) → Load new module → Preserve viewport → Re-render with new module → Display render time
-4. **Render Cycle**: Viewport parameters → Module calculation for each pixel → Measure calculation time → Color mapping → Canvas draw → Update render time display
+4. **Render Cycle**: Viewport parameters → Prepare coordinate arrays for all pixels → Single batch calculation call to module → Measure calculation time → Receive iteration results array → Color mapping → Canvas draw → Update render time display
 5. **Zoom Interaction**: Wheel event → Scale existing canvas image → Start debounce timer (1000ms) → If no additional zoom, trigger full re-render → Update viewport info
 6. **Resize**: Window resize → Adjust canvas dimensions → Maintain scale unchanged → Anchor top-left complex plane position at top-left of canvas → Adjust complex plane bounds to match new canvas dimensions → Maintain aspect ratio matching canvas → Update viewport info → Trigger render
 7. **Error Handling**: Module load failure → Display modal error → User must dismiss modal → Fall back to previous working module
@@ -172,12 +172,14 @@ class RenderEngine {
 ```
 
 **Behavior**:
-- Iterates over each pixel in the canvas
-- Converts pixel coordinates to complex plane coordinates
-- Calls calculation function (WASM or JavaScript) for each point
+- Prepares coordinate arrays for all canvas pixels
+- Iterates over each pixel position to build real and imaginary coordinate arrays
+- Converts pixel coordinates to complex plane coordinates using ViewportManager
+- Makes single batch call to calculation module with coordinate arrays
 - Measures calculation time from request to response
+- Receives array of iteration counts (one per pixel)
 - Maps iteration results to colors
-- Draws pixels to canvas using ImageData API
+- Draws all pixels to canvas using ImageData API
 - Supports hot-swapping between WASM and JavaScript modules while preserving viewport state
 - Provides immediate visual feedback by scaling existing canvas during zoom
 - Returns render time for display in UI
@@ -200,23 +202,30 @@ All modules expose the same interface for interoperability.
 ```javascript
 // Module exports (consistent across all implementations)
 {
-  // Calculate iterations for a single point
-  calculatePoint(real, imag, maxIterations, escapeRadius) // Returns iteration count
-  
-  // Calculate iterations for a buffer of points (optional optimization)
-  calculateBuffer(bufferPtr, length, maxIterations, escapeRadius)
+  // Calculate iterations for all canvas pixels in a single batch call
+  // Takes arrays of real and imaginary coordinates for all pixels
+  // Returns array of iteration counts (one per pixel)
+  calculateMandelbrotSet(
+    realCoords,      // Float64Array or array of real components
+    imagCoords,      // Float64Array or array of imaginary components
+    maxIterations,   // Maximum iteration count
+    escapeRadius     // Escape threshold (typically 2.0)
+  ) // Returns Uint32Array or array of iteration counts
 }
 ```
 
 **Implementation** (Rust/C++/Go/Moonbit/JavaScript):
-- Iterative calculation: z = z² + c
+- Batch processing: iterate through all coordinate pairs
+- For each point: iterative calculation z = z² + c
 - Early exit when |z| > escapeRadius
-- Return iteration count or maxIterations
+- Return iteration count or maxIterations for each point
+- Output array has same length as input coordinate arrays
 
 **Memory Management**:
-- WASM: Use shared memory between JavaScript and Wasm for buffer-based calculations
-- WASM: JavaScript allocates and passes memory pointers to Wasm
-- JavaScript: Direct function calls without memory management overhead
+- WASM: Use shared memory buffers (Float64Array for inputs, Uint32Array for outputs)
+- WASM: JavaScript allocates typed arrays and passes to Wasm
+- WASM: Wasm processes data in-place or writes to output buffer
+- JavaScript: Direct array processing without memory overhead
 
 ### 4. Module Selector UI Component
 
@@ -359,6 +368,18 @@ Mapping from iteration counts to RGB colors.
 *For any* complex point that does not escape within maxIterations, the calculation function should return exactly maxIterations.
 
 **Validates: Requirements 2.4**
+
+### Property 4a: Batch calculation returns correct array length
+
+*For any* arrays of real and imaginary coordinates passed to the batch calculation function, the returned array of iteration counts should have the same length as the input arrays.
+
+**Validates: Requirements 2.1, 2.6**
+
+### Property 4b: Batch calculation produces consistent results
+
+*For any* set of coordinate pairs, calculating them in a single batch should produce the same iteration counts as calculating each point individually (when compared against a reference implementation).
+
+**Validates: Requirements 2.1, 2.6**
 
 ### Property 5: Pan translates viewport proportionally
 
@@ -558,6 +579,12 @@ Unit tests will verify specific examples and edge cases:
 - Test canvas-to-complex coordinate conversion with known values
 - Test edge cases (0,0), (width, height), (width/2, height/2)
 
+**Batch Calculation**:
+- Test that batch calculation function is called once per render (not per pixel)
+- Test that coordinate arrays are prepared correctly for all canvas pixels
+- Test that returned iteration array has correct length
+- Test that batch results are correctly mapped to canvas pixels
+
 **Color Mapping**:
 - Test that maxIterations maps to set color
 - Test that 0 iterations maps to first palette color
@@ -596,6 +623,17 @@ Property-based tests will verify universal properties across many randomly gener
 4. **Non-Escape Property** (Property 4)
    - Generate random non-escaping points (known to be in set)
    - Verify returned iterations === maxIterations
+
+4a. **Batch Array Length Property** (Property 4a)
+   - Generate random arrays of coordinate pairs
+   - Call batch calculation function
+   - Verify output array length equals input array length
+
+4b. **Batch Consistency Property** (Property 4b)
+   - Generate random sets of coordinate pairs
+   - Calculate using batch function
+   - Calculate each point individually (reference implementation)
+   - Verify all results match
 
 5. **Pan Translation Property** (Property 5)
    - Generate random viewports and pan deltas
