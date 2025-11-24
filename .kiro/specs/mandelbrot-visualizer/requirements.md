@@ -35,11 +35,12 @@ The Mandelbrot Visualizer is a web-based application that renders the Mandelbrot
 
 #### Acceptance Criteria
 
-1. WHEN the Mandelbrot Set is calculated, THE System SHALL execute the computation using WebAssembly modules
+1. WHEN the Mandelbrot Set is calculated using a WebAssembly calculation module, THE System SHALL execute the computation of the entire set for all the pixels in the canvas using a single call to the WebAssembly module.
 2. WHEN a pixel requires calculation, THE Wasm Module SHALL iterate the Mandelbrot function up to a maximum iteration count
 3. WHEN a point escapes the escape radius, THE Wasm Module SHALL return the iteration count at which escape occurred
 4. WHEN a point does not escape within the maximum iterations, THE Wasm Module SHALL return the maximum iteration count
-5. WHEN the Wasm Module is invoked, THE System SHALL pass viewport coordinates and iteration parameters to the module
+5. WHEN the Wasm Module is invoked, THE System SHALL pass arrays of the real and imaginary pairs and iteration parameters to the module
+6. WHEN the Wasm Module processing completes, THE System SHALL return the results of each mandelbrot calculation that was performed as an array.
 
 ### Requirement 3
 
