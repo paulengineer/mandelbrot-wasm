@@ -155,7 +155,6 @@ async function handleModuleChange(newModuleName, previousModuleName) {
     currentWasmModule = newModule;
     
     console.log(`Successfully switched to ${newModuleName} module`);
-    hideError();
     
   } catch (error) {
     console.error(`Failed to switch to ${newModuleName} module:`, error);
