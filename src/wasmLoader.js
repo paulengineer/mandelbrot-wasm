@@ -14,33 +14,28 @@ const MODULE_CONFIGS = {
     path: import.meta.env.BASE_URL + 'wasm/rust/mandelbrot_wasm_rust.js',
     wasmPath: import.meta.env.BASE_URL + 'wasm/rust/mandelbrot_wasm_rust_bg.wasm',
     type: 'esm', // ES module with init function
-    functionName: 'calculate_point'
   },
   cpp: {
     name: 'C++',
     path: import.meta.env.BASE_URL + 'wasm/cpp/mandelbrot.js',
     wasmPath: import.meta.env.BASE_URL + 'wasm/cpp/mandelbrot.wasm',
     type: 'emscripten', // Emscripten module
-    functionName: 'calculatePoint'
   },
   go: {
     name: 'Go',
     path: import.meta.env.BASE_URL + 'wasm/go/wasm_exec.js',
     wasmPath: import.meta.env.BASE_URL + 'wasm/go/mandelbrot.wasm',
     type: 'go', // TinyGo/Go wasm
-    functionName: 'calculatePoint'
   },
   moonbit: {
     name: 'Moonbit',
     wasmPath: import.meta.env.BASE_URL + 'wasm/moonbit/build/mandelbrot.wasm',
     type: 'moonbit', // Moonbit wasm
-    functionName: 'calculatePoint'
   },
   javascript: {
     name: 'JavaScript',
     path: import.meta.env.BASE_URL + 'src/jsCalculator.js',
     type: 'javascript', // Pure JavaScript implementation
-    functionName: 'calculatePoint'
   }
 };
 
