@@ -12,6 +12,7 @@ import { RenderEngine } from './renderEngine.js';
 import { EventHandler } from './eventHandler.js';
 import { ModuleSelector } from './moduleSelector.js';
 import { ViewportInfo } from './viewportInfo.js';
+import { ErrorDisplay } from './errorDisplay.js';
 
 /**
  * Application state
@@ -23,6 +24,7 @@ let eventHandler;
 let moduleSelector;
 let viewportInfo;
 let currentWasmModule;
+let errorDisplay;
 
 /**
  * Display an error message to the user using modal dialog
@@ -31,26 +33,9 @@ let currentWasmModule;
 function displayError(message) {
   console.error('Application error:', message);
   
-  // Use modal dialog if module selector is available
-  if (moduleSelector) {
-    moduleSelector.showError(message);
-  } else {
-    // Fallback: directly manipulate modal if module selector not yet initialized
-    const modal = document.getElementById('error-modal');
-    const modalMessage = document.getElementById('modal-message');
-    const closeButton = document.getElementById('modal-close');
-    
-    if (modal && modalMessage && closeButton) {
-      modalMessage.textContent = message;
-      modal.classList.remove('hidden');
-      
-      // Set up close handler
-      const handleClose = () => {
-        modal.classList.add('hidden');
-        closeButton.removeEventListener('click', handleClose);
-      };
-      closeButton.addEventListener('click', handleClose);
-    }
+  // Use modal dialog if errorDisplay is available
+  if (errorDisplay) {
+    errorDisplay.showError(message);
   }
 }
 
@@ -58,13 +43,8 @@ function displayError(message) {
  * Hide the error message
  */
 function hideError() {
-  if (moduleSelector) {
-    moduleSelector.hideError();
-  } else {
-    const modal = document.getElementById('error-modal');
-    if (modal) {
-      modal.classList.add('hidden');
-    }
+  if (errorDisplay) {
+    errorDisplay.hideError();
   }
 }
 
@@ -160,7 +140,7 @@ async function handleModuleChange(newModuleName, previousModuleName) {
     console.error(`Failed to switch to ${newModuleName} module:`, error);
     
     // Display modal error to user
-    moduleSelector.showError(`Failed to load ${newModuleName} module. ${error.message}`);
+    errorDisplay.showError(`Failed to load ${newModuleName} module. ${error.message}`);
     
     // Revert to previous module in the UI
     moduleSelector.selectModule(previousModuleName);
@@ -214,6 +194,10 @@ async function initializeApplication() {
   try {
     console.log('Initializing Mandelbrot Visualizer...');
     
+    // Step 0: Initialise error display handler
+    errorDisplay = new ErrorDisplay();
+    console.log('✓ Error Display handler initialized');
+
     // Step 1: Initialize canvas
     initializeCanvas();
     console.log('✓ Canvas initialized');

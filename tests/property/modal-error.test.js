@@ -4,10 +4,10 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fc from 'fast-check';
-import { ModuleSelector } from '../../src/moduleSelector.js';
+import { ErrorDisplay } from '../../src/errorDisplay.js';
 
 describe('Modal Error Dialog - Property Tests', () => {
-  let moduleSelector;
+  let errorDisplay;
   let container;
   let modal;
   let modalMessage;
@@ -45,10 +45,8 @@ describe('Modal Error Dialog - Property Tests', () => {
     
     document.body.appendChild(modal);
 
-    // Create ModuleSelector instance
-    const mockCallback = vi.fn();
-    moduleSelector = new ModuleSelector(mockCallback);
-    moduleSelector.render();
+    // Create ErrorDisplay instance
+    errorDisplay = new ErrorDisplay();
   });
 
   afterEach(() => {
@@ -59,7 +57,7 @@ describe('Modal Error Dialog - Property Tests', () => {
     if (modal && modal.parentNode) {
       modal.parentNode.removeChild(modal);
     }
-    moduleSelector = null;
+    errorDisplay = null;
   });
 
   // Feature: mandelbrot-visualizer, Property 16: Modal error on module load failure
@@ -70,7 +68,7 @@ describe('Modal Error Dialog - Property Tests', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         (errorMessage) => {
           // Show the error modal
-          moduleSelector.showError(errorMessage);
+          errorDisplay.showError(errorMessage);
           
           // Verify modal is visible (not hidden)
           expect(modal.classList.contains('hidden')).toBe(false);
@@ -83,7 +81,7 @@ describe('Modal Error Dialog - Property Tests', () => {
           expect(modal.classList.contains('hidden')).toBe(false);
           
           // Clean up for next iteration
-          moduleSelector.hideError();
+          errorDisplay.hideError();
           
           // Verify modal is hidden after dismissal
           expect(modal.classList.contains('hidden')).toBe(true);
@@ -100,7 +98,7 @@ describe('Modal Error Dialog - Property Tests', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         (errorMessage) => {
           // Show the error modal
-          moduleSelector.showError(errorMessage);
+          errorDisplay.showError(errorMessage);
           
           // Verify modal is visible
           expect(modal.classList.contains('hidden')).toBe(false);
@@ -134,7 +132,7 @@ describe('Modal Error Dialog - Property Tests', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         (errorMessage) => {
           // Show the error modal
-          moduleSelector.showError(errorMessage);
+          errorDisplay.showError(errorMessage);
           
           // Verify modal is visible
           expect(modal.classList.contains('hidden')).toBe(false);
@@ -158,7 +156,7 @@ describe('Modal Error Dialog - Property Tests', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         (errorMessage) => {
           // Show the error modal
-          moduleSelector.showError(errorMessage);
+          errorDisplay.showError(errorMessage);
           
           // Verify modal is visible
           expect(modal.classList.contains('hidden')).toBe(false);
@@ -185,7 +183,7 @@ describe('Modal Error Dialog - Property Tests', () => {
           // Display each error message sequentially
           for (const errorMessage of errorMessages) {
             // Show the error modal
-            moduleSelector.showError(errorMessage);
+            errorDisplay.showError(errorMessage);
             
             // Verify modal is visible
             expect(modal.classList.contains('hidden')).toBe(false);
@@ -194,7 +192,7 @@ describe('Modal Error Dialog - Property Tests', () => {
             expect(modalMessage.textContent).toBe(errorMessage);
             
             // Dismiss the modal
-            moduleSelector.hideError();
+            errorDisplay.hideError();
             
             // Verify modal is hidden
             expect(modal.classList.contains('hidden')).toBe(true);

@@ -761,10 +761,10 @@ describe('Main Application Integration Tests', () => {
   });
 
   describe('Modal Error Dialog Flow', () => {
-    let ModuleSelector;
+    let errorDisplay;
 
     beforeEach(async () => {
-      ({ ModuleSelector } = await import('../../src/moduleSelector.js'));
+      ({ errorDisplay } = await import('../../src/errorDisplay.js'));
       
       // Create modal DOM elements
       const modal = document.createElement('div');
@@ -794,12 +794,8 @@ describe('Main Application Integration Tests', () => {
     });
 
     it('should display modal error on module load failure', () => {
-      const mockCallback = vi.fn();
-      const moduleSelector = new ModuleSelector(mockCallback);
-      moduleSelector.render();
-
       const errorMessage = 'Failed to load WebAssembly module';
-      moduleSelector.showError(errorMessage);
+      errorDisplay.showError(errorMessage);
 
       const modal = document.getElementById('error-modal');
       const modalMessage = document.getElementById('modal-message');
@@ -809,11 +805,7 @@ describe('Main Application Integration Tests', () => {
     });
 
     it('should persist modal until user dismisses', async () => {
-      const mockCallback = vi.fn();
-      const moduleSelector = new ModuleSelector(mockCallback);
-      moduleSelector.render();
-
-      moduleSelector.showError('Test error');
+      errorDisplay.showError('Test error');
 
       const modal = document.getElementById('error-modal');
       expect(modal.classList.contains('hidden')).toBe(false);
@@ -823,25 +815,21 @@ describe('Main Application Integration Tests', () => {
       expect(modal.classList.contains('hidden')).toBe(false);
 
       // User dismisses
-      moduleSelector.hideError();
+      errorDisplay.hideError();
       expect(modal.classList.contains('hidden')).toBe(true);
     });
 
     it('should handle multiple sequential errors', () => {
-      const mockCallback = vi.fn();
-      const moduleSelector = new ModuleSelector(mockCallback);
-      moduleSelector.render();
-
       const errors = ['Error 1', 'Error 2', 'Error 3'];
       const modal = document.getElementById('error-modal');
       const modalMessage = document.getElementById('modal-message');
 
       errors.forEach(error => {
-        moduleSelector.showError(error);
+        errorDisplay.showError(error);
         expect(modal.classList.contains('hidden')).toBe(false);
         expect(modalMessage.textContent).toBe(error);
         
-        moduleSelector.hideError();
+        errorDisplay.hideError();
         expect(modal.classList.contains('hidden')).toBe(true);
       });
     });

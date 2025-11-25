@@ -5,14 +5,14 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadWasmModule } from '../../src/wasmLoader.js';
-import { ModuleSelector } from '../../src/moduleSelector.js';
+import { ErrorDisplay } from '../../src/errorDisplay.js';
 
 describe('Error Handling Integration', () => {
   let container;
   let modal;
   let modalMessage;
   let closeButton;
-  let moduleSelector;
+  let errorDisplay;
 
   beforeEach(() => {
     // Create mock DOM container for module selector
@@ -46,10 +46,8 @@ describe('Error Handling Integration', () => {
     
     document.body.appendChild(modal);
 
-    // Create ModuleSelector instance
-    const mockCallback = vi.fn();
-    moduleSelector = new ModuleSelector(mockCallback);
-    moduleSelector.render();
+    // Create ErrorDisplay instance
+    errorDisplay = new ErrorDisplay();
   });
 
   afterEach(() => {
@@ -60,7 +58,7 @@ describe('Error Handling Integration', () => {
     if (modal && modal.parentNode) {
       modal.parentNode.removeChild(modal);
     }
-    moduleSelector = null;
+    errorDisplay = null;
   });
 
   test('wasmLoader errors should be displayable via modal', async () => {
@@ -75,7 +73,7 @@ describe('Error Handling Integration', () => {
       expect(error.message).toContain('Invalid module name');
       
       // Display the error via modal (simulating what main.js does)
-      moduleSelector.showError(`Failed to load module. ${error.message}`);
+      errorDisplay.showError(`Failed to load module. ${error.message}`);
       
       // Verify modal is visible
       expect(modal.classList.contains('hidden')).toBe(false);
@@ -91,7 +89,7 @@ describe('Error Handling Integration', () => {
     const errorMessage = 'Failed to load WebAssembly module';
     
     // Display error via modal
-    moduleSelector.showError(errorMessage);
+    errorDisplay.showError(errorMessage);
     
     // Verify modal is visible
     expect(modal.classList.contains('hidden')).toBe(false);
@@ -104,7 +102,7 @@ describe('Error Handling Integration', () => {
     expect(modal.classList.contains('hidden')).toBe(false);
     
     // User must explicitly dismiss
-    moduleSelector.hideError();
+    errorDisplay.hideError();
     
     // Now modal should be hidden
     expect(modal.classList.contains('hidden')).toBe(true);
@@ -119,7 +117,7 @@ describe('Error Handling Integration', () => {
     
     errors.forEach(errorMessage => {
       // Display error
-      moduleSelector.showError(errorMessage);
+      errorDisplay.showError(errorMessage);
       
       // Verify modal is visible
       expect(modal.classList.contains('hidden')).toBe(false);
@@ -128,7 +126,7 @@ describe('Error Handling Integration', () => {
       expect(modalMessage.textContent).toBe(errorMessage);
       
       // Dismiss modal
-      moduleSelector.hideError();
+      errorDisplay.hideError();
       
       // Verify modal is hidden
       expect(modal.classList.contains('hidden')).toBe(true);
@@ -139,7 +137,7 @@ describe('Error Handling Integration', () => {
     const errorMessage = 'Test error for Escape key';
     
     // Display error
-    moduleSelector.showError(errorMessage);
+    errorDisplay.showError(errorMessage);
     
     // Verify modal is visible
     expect(modal.classList.contains('hidden')).toBe(false);
@@ -156,7 +154,7 @@ describe('Error Handling Integration', () => {
     const errorMessage = 'Test error for overlay click';
     
     // Display error
-    moduleSelector.showError(errorMessage);
+    errorDisplay.showError(errorMessage);
     
     // Verify modal is visible
     expect(modal.classList.contains('hidden')).toBe(false);
