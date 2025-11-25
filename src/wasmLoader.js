@@ -11,31 +11,30 @@
 const MODULE_CONFIGS = {
   rust: {
     name: 'Rust',
-    path: '/wasm/rust/pkg/mandelbrot_wasm_rust.js',
-    wasmPath: '/wasm/rust/pkg/mandelbrot_wasm_rust_bg.wasm',
+    path: import.meta.env.BASE_URL + 'wasm/rust/mandelbrot_wasm_rust.js',
+    wasmPath: import.meta.env.BASE_URL + 'wasm/rust/mandelbrot_wasm_rust_bg.wasm',
     type: 'esm', // ES module with init function
   },
   cpp: {
     name: 'C++',
-    path: '/wasm/cpp/mandelbrot.js',
-    wasmPath: '/wasm/cpp/mandelbrot.wasm',
+    path: import.meta.env.BASE_URL + 'wasm/cpp/mandelbrot.js',
+    wasmPath: import.meta.env.BASE_URL + 'wasm/cpp/mandelbrot.wasm',
     type: 'emscripten', // Emscripten module
   },
   go: {
     name: 'Go',
-    path: '/wasm/go/mandelbrot.wasm',
-    wasmPath: '/wasm/go/mandelbrot.wasm',
+    path: import.meta.env.BASE_URL + 'wasm/go/wasm_exec.js',
+    wasmPath: import.meta.env.BASE_URL + 'wasm/go/mandelbrot.wasm',
     type: 'go', // TinyGo/Go wasm
   },
   moonbit: {
     name: 'Moonbit',
-    path: '/wasm/moonbit/build/mandelbrot.wasm',
-    wasmPath: '/wasm/moonbit/build/mandelbrot.wasm',
+    wasmPath: import.meta.env.BASE_URL + 'wasm/moonbit/build/mandelbrot.wasm',
     type: 'moonbit', // Moonbit wasm
   },
   javascript: {
     name: 'JavaScript',
-    path: '/src/jsCalculator.js',
+    path: import.meta.env.BASE_URL + 'src/jsCalculator.js',
     type: 'javascript', // Pure JavaScript implementation
   }
 };
@@ -52,6 +51,7 @@ const DEFAULT_MODULE = 'rust';
  */
 async function loadRustModule(config) {
   try {
+    console.log('import.meta.env.BASE_URL: ' + import.meta.env.BASE_URL)
     // Dynamically import the Rust wasm-bindgen generated module
     const wasmModule = await import(config.path);
     
@@ -180,9 +180,9 @@ async function loadGoModule(config) {
       // Dynamically load wasm_exec.js
       await new Promise((resolve, reject) => {
         const script = document.createElement('script');
-        script.src = '/wasm/go/wasm_exec.js';
+        script.src = config.path;
         script.onload = resolve;
-        script.onerror = () => reject(new Error('Failed to load wasm_exec.js'));
+        script.onerror = () => reject(new Error(`Failed to load ${config.path}`));
         document.head.appendChild(script);
       });
     }

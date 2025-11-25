@@ -4,10 +4,6 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-    fs: {
-      // Allow serving files from wasm directories
-      allow: ['..']
-    }
   },
   build: {
     target: 'esnext',
